@@ -1,0 +1,21 @@
+cff-version: 1.2.0
+message: "If you use MatchACell, please cite it as below."
+title: "MatchACell: a matcha-themed single-cell type/state annotation toolkit"
+abstract: >-
+  MatchACell is a Snakemake-based single-cell annotation toolkit. Step 1 is a
+  data-driven QC and Leiden cluster-stability optimizer that recommends a
+  clustering resolution for downstream annotation (the "MatchA Verdict"), with
+  optional GPU acceleration via rapids-singlecell.
+authors:
+  - family-names: "<Your surname>"
+    given-names: "<Your name>"
+# Add collaborators as needed.
+license: MIT
+repository-code: "https://github.com/<OWNER>/MatchACell"
+keywords:
+  - single-cell
+  - spatial-transcriptomics
+  - clustering
+  - leiden
+  - snakemake
+  - bioinformatics

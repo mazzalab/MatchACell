@@ -1,0 +1,38 @@
+# MatchACell — CPU environment.
+#   conda env create -f environment.yml     (or: mamba env create -f ...)
+#   conda activate matchacell
+#
+# Snakemake is pinned to 7.32.4: run.py uses the Snakemake 7.x Python API,
+# which is incompatible with the 8.x rewrite.
+name: matchacell
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - python=3.10
+  - snakemake-minimal=7.32.4
+  # Single-cell core
+  - scanpy>=1.9
+  - anndata>=0.9
+  - leidenalg
+  - python-igraph
+  - pynndescent
+  - umap-learn
+  - scikit-learn
+  # Scientific stack
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib-base
+  - seaborn
+  - plotly
+  - openpyxl          # pandas ExcelWriter backend (.xlsx outputs)
+  # Workflow / CLI
+  - pyyaml
+  - colorama
+  - pulp<2.8          # keeps the Snakemake 7.x scheduler happy
+  # Tooling
+  - pytest
+  - pip
+  - pip:
+      - pyclustree    # optional clustree plot; the script degrades gracefully

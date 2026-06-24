@@ -1,0 +1,18 @@
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+# Make the workflow script importable as a top-level module in tests.
+pythonpath = ["workflow/scripts"]
+addopts = "-ra -q"
+markers = [
+    "slow: end-to-end runs (CPU clustering); deselect with -m 'not slow'",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# Pragmatic defaults; the scientific code favours readability over strictness.
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

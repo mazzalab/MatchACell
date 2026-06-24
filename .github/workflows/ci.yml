@@ -1,0 +1,42 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    name: pytest (CPU)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash -el {0}   # login shell so `conda activate` works
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up conda environment
+        uses: mamba-org/setup-micromamba@v1
+        with:
+          environment-file: environment.yml
+          cache-environment: true
+
+      - name: Show versions
+        run: |
+          python -c "import snakemake, scanpy; print('snakemake', snakemake.__version__); print('scanpy', scanpy.__version__)"
+
+      - name: Lint launcher and script (syntax)
+        run: |
+          python -m py_compile run.py workflow/scripts/matchacell_cluster_stability.py
+
+      - name: Snakemake dry-run sanity
+        run: |
+          mkdir -p data
+          python tools/fetch_pbmc3k.py data/pbmc3k.h5ad || echo "dataset fetch skipped (offline)"
+          ./run.py -w cluster_stability -c config.yaml -q 1 -n || true
+
+      - name: Run tests
+        run: pytest -m "not slow"
+
+      - name: Run slow end-to-end test
+        run: pytest -m slow

@@ -1,0 +1,33 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+.env
+
+# ── Testing / linting ──
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# ── Snakemake ──
+.snakemake/
+
+# ── MatchACell data & results (don't commit large artefacts) ──
+data/*.h5ad
+results/
+output/
+*.h5ad
+*.html
+!docs/**/*.html
+
+# ── OS / editor ──
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

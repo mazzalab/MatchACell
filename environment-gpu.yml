@@ -1,0 +1,49 @@
+# MatchACell — GPU environment (RAPIDS / rapids-singlecell).
+#
+# IMPORTANT: the RAPIDS libraries are CUDA-version- and platform-specific.
+# Pick library versions and a `cuda-version` that match your driver/toolkit.
+# The pins below are a TEMPLATE — adjust `cuda-version`, `cuml`, `cugraph`,
+# `cupy`, and `rmm` to a coherent RAPIDS release (see https://rapids.ai).
+#
+#   conda env create -f environment-gpu.yml
+#   conda activate matchacell-gpu
+#
+# Then run with --backend gpu (or backend: "auto" in config.yaml).
+name: matchacell-gpu
+channels:
+  - rapidsai
+  - conda-forge
+  - nvidia
+  - bioconda
+dependencies:
+  - python=3.10
+  - snakemake-minimal=7.32.4
+  # ── RAPIDS (edit to a single coherent release + CUDA version) ──
+  - cuda-version=12.0
+  - cuml=24.*
+  - cugraph=24.*
+  - rmm=24.*
+  - cupy
+  # Single-cell core (CPU fallback path + shared deps)
+  - scanpy>=1.9
+  - anndata>=0.9
+  - leidenalg
+  - python-igraph
+  - pynndescent
+  - umap-learn
+  - scikit-learn
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib-base
+  - seaborn
+  - plotly
+  - openpyxl
+  - pyyaml
+  - colorama
+  - pulp<2.8
+  - pytest
+  - pip
+  - pip:
+      - rapids-singlecell
+      - pyclustree

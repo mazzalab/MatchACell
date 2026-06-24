@@ -1,0 +1,33 @@
+# ════════════════════════════════════════════════════════════════════════
+#  MatchACell — configuration
+#  Brewed with MatchACell · matcha-grade single-cell consensus
+# ════════════════════════════════════════════════════════════════════════
+
+# Main output directory. A results/ subfolder is created underneath; a trailing
+# slash is optional (it is normalized in the Snakefile).
+output_dir: "/path/to/output"
+
+# Informational: the expected input file extension.
+extension: "h5ad"
+
+# ── Samples ───────────────────────────────────────────────────────────────
+#   key   = sample ID used in output paths and report titles.
+#   value = path to the input .h5ad (raw-ish, post-segmentation counts),
+#           absolute or relative to the working directory.
+samples:
+  pbmc3k: "data/pbmc3k.h5ad"
+
+# ── Step 1: Leiden cluster-stability optimizer ────────────────────────────
+matchacell_cluster_stability:
+  # auto -> GPU if rapids-singlecell is importable, else CPU scanpy.
+  backend: "auto"
+
+  # Bootstrap iterations per resolution (higher = smoother Jaccard estimates).
+  n_iter: 1000
+
+  # Extra CLI flags passed verbatim to matchacell_cluster_stability.py.
+  # See `docs/cli-and-outputs.md` for the full flag reference. Examples:
+  #   "--resolutions 0.2 0.5 1.0 2.0 --skip-tsne"
+  #   "--gpu-cell-threshold 50000 --rmm-pool-fraction 0.6"
+  #   "--seed 0 --n-pcs 50 --n-neighbors 15"
+  extra: ""
