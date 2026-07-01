@@ -5,10 +5,13 @@
 
 # Main output directory. A results/ subfolder is created underneath; a trailing
 # slash is optional (it is normalized in the Snakefile).
-output_dir: "/path/to/output"
+output_dir: "/Users/chiaraparrillo/Desktop/Progetti/MatchACell/output"
 
 # Informational: the expected input file extension.
 extension: "h5ad"
+
+# Data type
+type: "singlecell"
 
 # ── Samples ───────────────────────────────────────────────────────────────
 #   key   = sample ID used in output paths and report titles.
@@ -31,3 +34,15 @@ matchacell_cluster_stability:
   #   "--gpu-cell-threshold 50000 --rmm-pool-fraction 0.6"
   #   "--seed 0 --n-pcs 50 --n-neighbors 15"
   extra: ""
+
+# ── Step 2: Cell Type Annotation ──────────────────────────────────────────
+
+matchacell_annotation:
+
+  #annotation file
+  annot_file: "/Users/chiaraparrillo/Downloads/signature2.xlsx"
+
+  #Signature Methods:
+  # --> ScoreGenes
+  score_genes:
+    threshold: 0.1

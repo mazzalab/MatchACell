@@ -126,6 +126,9 @@ WORKFLOWS: Dict[str, str] = {
         "Step 1 — data-driven QC + multi-resolution Leiden cluster-stability "
         "optimizer, producing the MatchA Verdict."
     ),
+    "annotation": (
+        "Step 2 — cell type annotation "
+    ),
 }
 
 # Targets that are on the roadmap but not yet wired as rules. Shown (dimmed) by

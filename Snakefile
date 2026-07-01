@@ -11,6 +11,7 @@ outputDir = config["output_dir"].rstrip("/") + "/"
 # ── Included modules ──────────────────────────────────────────────────────
 # Step 1. Future annotator steps will be added as additional includes here.
 include: "workflow/rules/cluster_stability.smk"
+include: "workflow/rules/score_genes.smk"
 
 
 SAMPLES = (
@@ -36,3 +37,30 @@ rule cluster_stability:
             outputDir + "results/{sample}/matchacell/clustered_multi_resolution.h5ad",
             sample=SAMPLES,
         ),
+
+rule annotation:
+    """Step 2 — Annotation."""
+    input:
+        expand(
+            os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "ScoreGenes", "score_genes_annotated.h5ad"),
+            sample=SAMPLES,
+        ),
+
+    # input:
+    #     lambda wildcards: [
+    #         # Verifica in modo robusto che il file sia configurato e non sia una stringa vuota
+    #         os.path.join(outputDir, "results", smp, "matchacell", "annotation", "ScoreGenes", "score_genes_annotated.h5ad")
+    #         if (
+    #             config.get("matchacell_annotation", {}).get("score_genes", {}).get("annot_file") 
+    #             and str(config["matchacell_annotation"]["score_genes"]["annot_file"]).strip() != ""
+    #         )
+            
+    #         # Altrimenti salta score_genes e usa lo step 1
+    #         else os.path.join(outputDir, "results", smp, "matchacell", "clustered_multi_resolution.h5ad")
+            
+    #         for smp in SAMPLES
+    #     ]
+    
+# rule all:
+#     input:
+#         rules.annotation.input
