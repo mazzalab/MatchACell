@@ -46,3 +46,9 @@ matchacell_annotation:
   # --> ScoreGenes
   score_genes:
     threshold: 0.1
+  
+  # --> CIA
+  cia:
+    ncpus: 5
+    threshold: 70
+

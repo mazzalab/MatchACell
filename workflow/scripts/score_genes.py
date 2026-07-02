@@ -88,7 +88,7 @@ def main(raw_data_file, annot_file, thr, verdict_file, output_dir):
 
         ax.set_title(signature_name)
         ax.set_ylabel("Gene score")
-        ax.set_ylim(-3, 8)
+        #ax.set_ylim(-3, 8)
 
         plt.xticks(rotation=15, ha="right", fontsize=10)
         plt.tight_layout()

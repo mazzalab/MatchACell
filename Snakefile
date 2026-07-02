@@ -12,6 +12,7 @@ outputDir = config["output_dir"].rstrip("/") + "/"
 # Step 1. Future annotator steps will be added as additional includes here.
 include: "workflow/rules/cluster_stability.smk"
 include: "workflow/rules/score_genes.smk"
+include: "workflow/rules/cia.smk"
 
 
 SAMPLES = (
@@ -41,8 +42,12 @@ rule cluster_stability:
 rule annotation:
     """Step 2 — Annotation."""
     input:
-        expand(
+        score_genes=expand(
             os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "ScoreGenes", "score_genes_annotated.h5ad"),
+            sample=SAMPLES,
+        ),
+        cia=expand(
+            os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "CIA", "cia_annotated.h5ad"),
             sample=SAMPLES,
         ),
 
