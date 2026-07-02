@@ -11,8 +11,11 @@ outputDir = config["output_dir"].rstrip("/") + "/"
 # ── Included modules ──────────────────────────────────────────────────────
 # Step 1. Future annotator steps will be added as additional includes here.
 include: "workflow/rules/cluster_stability.smk"
+
+# Step 2. Annotators.
 include: "workflow/rules/score_genes.smk"
 include: "workflow/rules/cia.smk"
+include: "workflow/rules/celltypist.smk"
 
 
 SAMPLES = (
@@ -48,6 +51,10 @@ rule annotation:
         ),
         cia=expand(
             os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "CIA", "cia_annotated.h5ad"),
+            sample=SAMPLES,
+        ),
+        celltypist=expand(
+            os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "CellTypist", "celltypist_annotated.h5ad"),
             sample=SAMPLES,
         ),
 

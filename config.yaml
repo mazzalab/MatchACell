@@ -42,7 +42,7 @@ matchacell_annotation:
   #annotation file
   annot_file: "/Users/chiaraparrillo/Downloads/signature2.xlsx"
 
-  #Signature Methods:
+  #### Signature Methods:
   # --> ScoreGenes
   score_genes:
     threshold: 0.1
@@ -51,4 +51,9 @@ matchacell_annotation:
   cia:
     ncpus: 5
     threshold: 70
+  
+  #### Dataset-based Methods:
+  # --> Celltypist
+  celltypist:
+    models: ['Immune_All_Low.pkl', 'Immune_All_High.pkl']
 
