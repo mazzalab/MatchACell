@@ -21,7 +21,7 @@ rule celltypist:
     params:
         outdir=os.path.join(outputDir,"results","{sample}","matchacell","annotation","CellTypist"),
         verdict_file=os.path.join(outputDir,"results","{sample}","matchacell","MatchA_Verdict.txt"),
-        models=method_config["models"]
+        models=method_config["models"],
     threads: 8
     conda:
         "../envs/celltypist.yaml"

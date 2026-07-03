@@ -63,7 +63,6 @@ def main(raw_data_file, annot_file, verdict_file, thr, output_dir, ncpus):
     # =====================
     # CIA
     # =====================
-
     gmt_orig = investigate.load_signatures(signature_dict_tot)
 
     for sig_name, genes in gmt_orig.items():
@@ -124,13 +123,13 @@ def main(raw_data_file, annot_file, verdict_file, thr, output_dir, ncpus):
     multi_umap(adata, leiden_col, 'CIA prediction default', output_dir)
 
     # Metrics di classificazione e Group Composition
-    report.group_composition(
-        adata, 
-        classification_obs='CIA prediction default', 
-        ref_obs=leiden_col,
-        cmap='Greens',
-        save="_group_composition.png"
-    )
+    # report.group_composition(
+    #     adata, 
+    #     classification_obs='CIA prediction default', 
+    #     ref_obs=leiden_col,
+    #     cmap='Greens',
+    #     save="_group_composition.png"
+    # )
 
     # =====================
     # Mappatura dei Cluster
@@ -204,7 +203,7 @@ if __name__ == "__main__":
     )
 
     parser.add_argument("-n", "--ncpus", required=True, type=int, 
-                        help="number of CPUs"
+                        help="Number of CPUs"
     )
 
     args = parser.parse_args()
