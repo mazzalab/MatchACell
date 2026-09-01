@@ -10,6 +10,12 @@ output_dir: "/Users/chiaraparrillo/Desktop/Progetti/MatchACell/output"
 # Informational: the expected input file extension.
 extension: "h5ad"
 
+# Format of the files listed under `samples` below.
+#   "h5ad" -> native, staged into results/{sample}/h5/ unchanged.
+#   "rds"  -> a Seurat/SingleCellExperiment .rds, converted to .h5ad via
+#             workflow/scripts/rds2h5.R before staging.
+dtype: "h5ad"
+
 # Data type
 type: "singlecell"
 
@@ -51,6 +57,10 @@ matchacell_annotation:
   cia:
     ncpus: 5
     threshold: 70
+
+  # --> AddModuleScore (Seurat, R)
+  addmodulescore:
+    threshold: 0.1
   
   #### Dataset-based Methods:
   # --> Celltypist

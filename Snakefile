@@ -9,6 +9,9 @@ import os
 outputDir = config["output_dir"].rstrip("/") + "/"
 
 # ── Included modules ──────────────────────────────────────────────────────
+# Step 0. Stage every sample as .h5ad (converting from .rds when needed).
+include: "workflow/rules/rds2h5.smk"
+
 # Step 1. Future annotator steps will be added as additional includes here.
 include: "workflow/rules/cluster_stability.smk"
 
@@ -17,6 +20,7 @@ include: "workflow/rules/score_genes.smk"
 include: "workflow/rules/cia.smk"
 include: "workflow/rules/celltypist.smk"
 include: "workflow/rules/cytetype.smk"
+include: "workflow/rules/addmodulescore.smk"
 
 
 SAMPLES = (
@@ -52,6 +56,10 @@ rule cluster_stability:
             outputDir + "results/{sample}/matchacell/clustered_multi_resolution.h5ad",
             sample=SAMPLES,
         ),
+        expand(
+            outputDir + "results/{sample}/matchacell/clustered_multi_resolution.rds",
+            sample=SAMPLES,
+        ),
 
 rule annotation:
     """Step 2 — Annotation."""
@@ -74,6 +82,10 @@ rule annotation:
                 sample=SAMPLES,
             )
             if _CYTETYPE_TOKEN else []
+        ),
+        addmodulescore=expand(
+            os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "AddModuleScore", "addmodulescore_annotated.h5ad"),
+            sample=SAMPLES,
         ),
 
     # input:

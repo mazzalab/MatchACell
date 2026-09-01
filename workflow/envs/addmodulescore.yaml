@@ -1,0 +1,23 @@
+# Per-rule conda environment used by the Snakemake `conda:` directive.
+# R/Bioconductor stack (Seurat, zellkonverter, rhdf5) -- separate from the
+# python-only matchacell-rule env used by the other annotators. Shared by
+# every R script in the pipeline: addmodulescore_tool.R, rds2h5.R (rule
+# stage_h5), h52rds.R (rule matchacell_cluster_stability_rds).
+# Snakemake itself is provided by the launching environment, so it is omitted here.
+name: matchacell-rule-r
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - r-base=4.3
+  - r-seurat>=5.0
+  - r-optparse
+  - r-openxlsx
+  - r-ggplot2
+  - r-dplyr
+  - r-pheatmap
+  - bioconductor-singlecellexperiment
+  - bioconductor-zellkonverter
+  - bioconductor-rhdf5
+  - bioconductor-rhdf5filters
+  - bioconductor-hdf5array
