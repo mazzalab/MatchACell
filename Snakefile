@@ -16,12 +16,23 @@ include: "workflow/rules/cluster_stability.smk"
 include: "workflow/rules/score_genes.smk"
 include: "workflow/rules/cia.smk"
 include: "workflow/rules/celltypist.smk"
+include: "workflow/rules/cytetype.smk"
 
 
 SAMPLES = (
     list(config["samples"].keys())
     if isinstance(config["samples"], dict)
     else list(config["samples"])
+)
+
+# CyteType needs an account/API token (see `cytetype setup`); skip it out of
+# rule annotation's required inputs when none is configured, instead of
+# failing the whole Step 2 run. Checked in config.yaml first (kept empty
+# there, commit-safe) and then the CYTETYPE_API_TOKEN env var, so the token
+# never has to be written into a tracked file.
+_CYTETYPE_TOKEN = (
+    config["matchacell_annotation"].get("cytetype", {}).get("api_token", "")
+    or os.environ.get("CYTETYPE_API_TOKEN", "")
 )
 
 
@@ -56,6 +67,13 @@ rule annotation:
         celltypist=expand(
             os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "CellTypist", "celltypist_annotated.h5ad"),
             sample=SAMPLES,
+        ),
+        cytetype=(
+            expand(
+                os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "CyteType", "cytetype_annotated.h5ad"),
+                sample=SAMPLES,
+            )
+            if _CYTETYPE_TOKEN else []
         ),
 
     # input:

@@ -57,3 +57,18 @@ matchacell_annotation:
   celltypist:
     models: ['Immune_All_Low.pkl', 'Immune_All_High.pkl']
 
+  #### AI model-based Methods:
+  # --> CyteType
+  cytetype:
+    # CyteType API bearer token. Keep this EMPTY here (config.yaml is
+    # committed to git) and set it via the CYTETYPE_API_TOKEN env var instead,
+    # e.g. `export CYTETYPE_API_TOKEN=cyt_...` before running ./run.py.
+    # Leave both unset to skip the cytetype rule entirely (e.g. no account
+    # yet, or `cytetype setup` credentials not available on this machine).
+    # Get a token from https://cytetype.nygen.io after signing up.
+    api_token: ""
+    study_context: "Human PBMC scRNA-seq data (10x Genomics), used to validate the MatchACell annotation pipeline."
+    title: "MatchACell run"
+    run_label: "v1"
+    n_top_genes: 100
+

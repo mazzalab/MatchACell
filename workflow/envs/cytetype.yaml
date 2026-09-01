@@ -1,0 +1,22 @@
+# Per-rule conda environment used by the Snakemake `conda:` directive.
+# Mirrors the top-level environment.yml so `--use-conda` runs are reproducible.
+# Snakemake itself is provided by the launching environment, so it is omitted here.
+name: matchacell-rule
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  # cytetype requires python>=3.12 (unlike the other rule envs, pinned 3.10).
+  - python=3.12
+  - scanpy>=1.9
+  - anndata>=0.9
+  - numpy
+  - pandas
+  - scipy
+  - matplotlib-base
+  - seaborn
+  - plotly
+  - openpyxl
+  - pip
+  - pip:
+      - cytetype
