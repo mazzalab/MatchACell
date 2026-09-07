@@ -31,9 +31,22 @@ from __future__ import annotations
 
 import argparse
 import os
+import platform
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+
+# On Apple Silicon, conda's solver can silently resolve some per-rule envs
+# onto osx-64 (Rosetta-emulated) builds instead of native osx-arm64 -- e.g.
+# scvi.yaml's jax/jaxlib pulled an x86_64 wheel this way and crashed with
+# "This version of jaxlib was built using AVX instructions, which your CPU
+# ... do not support" (2026-09-07, workflow/envs/scanvi.yaml). Pin the
+# subdir so `conda env create` is constrained to arm64-native packages (and
+# fails loudly if one genuinely isn't available, instead of quietly falling
+# back to an emulated build). Only set if the caller hasn't already chosen
+# one explicitly.
+if sys.platform == "darwin" and platform.machine() == "arm64":
+    os.environ.setdefault("CONDA_SUBDIR", "osx-arm64")
 
 import snakemake
 

@@ -21,6 +21,7 @@ include: "workflow/rules/cia.smk"
 include: "workflow/rules/celltypist.smk"
 include: "workflow/rules/cytetype.smk"
 include: "workflow/rules/addmodulescore.smk"
+include: "workflow/rules/scanvi.smk"
 
 
 SAMPLES = (
@@ -38,6 +39,11 @@ _CYTETYPE_TOKEN = (
     config["matchacell_annotation"].get("cytetype", {}).get("api_token", "")
     or os.environ.get("CYTETYPE_API_TOKEN", "")
 )
+
+# scANVI needs an annotated reference atlas; skip it out of rule
+# annotation's required inputs when none is configured, instead of failing
+# the whole Step 2 run.
+_SCANVI_REFERENCE = config["matchacell_annotation"].get("scanvi", {}).get("reference_file", "")
 
 
 onstart:
@@ -86,6 +92,13 @@ rule annotation:
         addmodulescore=expand(
             os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "AddModuleScore", "addmodulescore_annotated.h5ad"),
             sample=SAMPLES,
+        ),
+        scanvi=(
+            expand(
+                os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "scANVI", "scanvi_annotated.h5ad"),
+                sample=SAMPLES,
+            )
+            if _SCANVI_REFERENCE else []
         ),
 
     # input:
