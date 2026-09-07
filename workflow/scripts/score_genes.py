@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
 
-from functions_annot import rearrange_sign, extract_best_res
+from functions_annot import rearrange_sign, extract_best_res, multi_umap
 
 
 def main(raw_data_file, annot_file, thr, verdict_file, output_dir):
@@ -214,6 +214,18 @@ def main(raw_data_file, annot_file, thr, verdict_file, output_dir):
         .map(mapping_dict)
         .astype("category")
     )
+
+    # =====================
+    # UMAP colored by the final annotation
+    # =====================
+    sc.pl.umap(
+        raw_data_filtered,
+        color=annotation_col,
+        legend_fontsize=6,
+        save=f"_{leiden_col}_{annotation_col}.png"
+    )
+
+    multi_umap(raw_data_filtered, leiden_col, annotation_col, output_rankgenes)
 
     # =====================
     # Save AnnData with scores

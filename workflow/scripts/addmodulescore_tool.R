@@ -163,7 +163,20 @@ dev.off()
 # =====================
 # UMAP
 # =====================
-umap_reduction <- if ("UMAP" %in% names(seurat_obj@reductions)) "UMAP" else names(seurat_obj@reductions)[1]
+# Actual reduction name after h52rds.R's SCE -> Seurat conversion is
+# "X_umap" (zellkonverter keeps the AnnData obsm key as-is, prefixed) --
+# "UMAP" never matches and silently fell back to reductions[1] (X_pca),
+# so every UMAP plot below was actually a PCA plot. Try the real name(s)
+# first; only fall back with a loud warning if truly none is found.
+umap_candidates <- c("X_umap", "umap", "UMAP")
+umap_reduction <- Find(function(r) r %in% names(seurat_obj@reductions), umap_candidates)
+if (is.null(umap_reduction)) {
+  umap_reduction <- names(seurat_obj@reductions)[1]
+  warning(
+    "No UMAP reduction found among ", paste(umap_candidates, collapse = ", "),
+    " -- falling back to '", umap_reduction, "' (may not be a 2D UMAP layout)."
+  )
+}
 
 p_umap <- DimPlot(seurat_obj, group.by = leiden_col, reduction = umap_reduction)
 ggsave(
@@ -223,6 +236,16 @@ message(
 mapping_vec <- setNames(final_annotations, as.character(df_mean[[leiden_col]]))
 seurat_obj$cell_type_pred <- unname(
   mapping_vec[as.character(seurat_obj[[leiden_col, drop = TRUE]])]
+)
+
+# =====================
+# UMAP colored by the final annotation
+# =====================
+p_annot <- DimPlot(seurat_obj, group.by = "cell_type_pred", reduction = umap_reduction) +
+  ggtitle("Final annotation (cell_type_pred)")
+ggsave(
+  file.path(output_dir, paste0(leiden_col, "_cell_type_pred_umap.png")),
+  p_annot, width = 7, height = 5, dpi = 150
 )
 
 # =====================
