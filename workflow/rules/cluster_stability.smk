@@ -17,6 +17,7 @@ rule matchacell_cluster_stability:
         h5ad=outputDir + "results/{sample}/h5/{sample}.h5ad",
     output:
         clustered_h5ad=outputDir + "results/{sample}/matchacell/clustered_multi_resolution.h5ad",
+        verdict=outputDir + "results/{sample}/matchacell/MatchA_Verdict.txt",
     params:
         outdir=outputDir + "results/{sample}/matchacell",
         backend=_MC["backend"],

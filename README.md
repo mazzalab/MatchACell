@@ -14,13 +14,11 @@
 
 ---
 
-> **Status — Step 1 of a multi-step pipeline.**
-> MatchACell is being built incrementally. **What ships today is Step 1**: a
-> data-driven QC and **Leiden cluster-stability optimizer** that recommends the
-> clustering resolution to carry into annotation (the *MatchA Verdict*). The
-> longer-term goal is to run **multiple cell annotators in parallel** as
-> Snakemake rules and reconcile them into a consensus. Those steps
-> (`annotate`, `consensus`) are on the roadmap but **not yet wired**.
+> **Status — QC, clustering, and independent annotation workflows.**
+> Step 1 recommends a clustering resolution (the *MatchA Verdict*). Step 2's
+> `annotation` target runs the configured annotators, including optional
+> [scParadise/scAdam annotation](docs/scparadise.md). Cross-annotator consensus
+> remains on the roadmap.
 
 ## What it does
 
@@ -101,6 +99,7 @@ re-clusterings — the bootstrap auto-routes to CPU below
 - [`docs/pipeline.md`](docs/pipeline.md) — `run.py`, `config.yaml`, the rule, and how to add future annotators.
 - [`docs/methods.md`](docs/methods.md) — the science: QC, stability, the Verdict, backend caveats, known limitations.
 - [`docs/cli-and-outputs.md`](docs/cli-and-outputs.md) — full CLI reference and an output-by-output map.
+- [`docs/scparadise.md`](docs/scparadise.md) — scAdam model setup, annotation configuration, and outputs.
 
 ## Testing
 
@@ -112,7 +111,7 @@ pytest                 # include the CPU end-to-end smoke test
 ## Roadmap
 
 - [x] **Step 1** — QC + Leiden cluster-stability optimizer (the MatchA Verdict)
-- [ ] **Step 2** — multiple cell type/state annotators run in parallel as rules
+- [x] **Step 2** — multiple cell type/state annotators run in parallel as rules
 - [ ] **Step 3** — cross-annotator consensus + unified report
 - [ ] Reconcile/document the CPU↔GPU backend divergence for end users
 - [ ] Seed cuGraph Leiden for run-to-run reproducibility on GPU

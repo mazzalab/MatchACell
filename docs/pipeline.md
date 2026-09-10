@@ -1,7 +1,12 @@
 # The pipeline
 
 This document covers the Snakemake side: the launcher, the configuration, the
-single rule that exists today, and how future annotator steps will slot in.
+clustering and annotation rules, and how further annotators can be added.
+
+Step 2 is available through `python run.py -w annotation -c config.yaml -q 8`.
+The optional [scParadise annotator](scparadise.md) follows the same per-rule
+script/environment design as scANVI and CellTypist, and is enabled by configuring
+its local scAdam model directory.
 
 ## Architecture
 

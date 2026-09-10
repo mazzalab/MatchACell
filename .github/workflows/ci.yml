@@ -27,7 +27,7 @@ jobs:
 
       - name: Lint launcher and script (syntax)
         run: |
-          python -m py_compile run.py workflow/scripts/matchacell_cluster_stability.py
+          python -m py_compile run.py workflow/scripts/matchacell_cluster_stability.py workflow/scripts/scparadise_tool.py
 
       - name: Snakemake dry-run sanity
         run: |

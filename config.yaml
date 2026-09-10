@@ -86,6 +86,27 @@ matchacell_annotation:
     batch_size: 2048
     n_threads: 10
 
+  # --> scParadise (pretrained or custom scAdam v2 model)
+  scparadise:
+    # Download a tissue/species-appropriate model first; see docs/scparadise.md.
+    # Folder must end in scAdam and contain model_v2.pth.
+    # Leave empty to skip this annotator.
+    model_dir: ""
+    # Step 1 stores log-normalized expression here. Empty string uses .X.
+    layer: "lognorm"
+    # 0 selects the finest available annotation level; 1, 2, ... select explicitly.
+    label_level: 0
+    # Minimum probability for cell_type_pred (below -> Unknown); 0 disables.
+    threshold: 0.0
+    detect_unknown: false
+    unknown_method: "voting"
+    # scAdam's Ashman separation threshold, not a prediction probability.
+    unknown_threshold: 2.0
+    batch_size: 256
+    device: "auto"              # auto | cpu | cuda
+    n_threads: 8
+    seed: 0
+
   #### AI model-based Methods:
   # --> CyteType
   cytetype:
@@ -100,4 +121,3 @@ matchacell_annotation:
     title: "MatchACell run"
     run_label: "v1"
     n_top_genes: 100
-

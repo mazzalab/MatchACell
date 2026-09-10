@@ -22,6 +22,7 @@ include: "workflow/rules/celltypist.smk"
 include: "workflow/rules/cytetype.smk"
 include: "workflow/rules/addmodulescore.smk"
 include: "workflow/rules/scanvi.smk"
+include: "workflow/rules/scparadise.smk"
 
 
 SAMPLES = (
@@ -44,6 +45,9 @@ _CYTETYPE_TOKEN = (
 # annotation's required inputs when none is configured, instead of failing
 # the whole Step 2 run.
 _SCANVI_REFERENCE = config["matchacell_annotation"].get("scanvi", {}).get("reference_file", "")
+
+# scParadise uses a downloaded or custom scAdam model, shared by all samples.
+_SCPARADISE_MODEL = config["matchacell_annotation"].get("scparadise", {}).get("model_dir", "")
 
 
 onstart:
@@ -99,6 +103,13 @@ rule annotation:
                 sample=SAMPLES,
             )
             if _SCANVI_REFERENCE else []
+        ),
+        scparadise=(
+            expand(
+                os.path.join(outputDir, "results", "{sample}", "matchacell", "annotation", "scParadise", "scparadise_annotated.h5ad"),
+                sample=SAMPLES,
+            )
+            if _SCPARADISE_MODEL else []
         ),
 
     # input:
