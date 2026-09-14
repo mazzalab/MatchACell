@@ -20,6 +20,7 @@ include: "workflow/rules/score_genes.smk"
 include: "workflow/rules/cia.smk"
 include: "workflow/rules/celltypist.smk"
 include: "workflow/rules/cytetype.smk"
+include: "workflow/rules/celltypeai.smk"
 include: "workflow/rules/addmodulescore.smk"
 include: "workflow/rules/scanvi.smk"
 
@@ -44,6 +45,11 @@ _CYTETYPE_TOKEN = (
 # annotation's required inputs when none is configured, instead of failing
 # the whole Step 2 run.
 _SCANVI_REFERENCE = config["matchacell_annotation"].get("scanvi", {}).get("reference_file", "")
+
+# CellTypeAI needs a local Ollama server (`ollama serve`) plus a supported
+# tissue value; skip it out of rule annotation's required inputs when no
+# tissue is configured, instead of failing the whole Step 2 run.
+_CELLTYPEAI_TISSUE = config["matchacell_annotation"].get("celltypeai", {}).get("tissue", "")
 
 
 onstart:
@@ -88,6 +94,13 @@ rule annotation:
                 sample=SAMPLES,
             )
             if _CYTETYPE_TOKEN else []
+        ),
+        celltypeai=(
+            expand(
+                os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "CellTypeAI", "celltypeai_annotated.h5ad"),
+                sample=SAMPLES,
+            )
+            if _CELLTYPEAI_TISSUE else []
         ),
         addmodulescore=expand(
             os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "AddModuleScore", "addmodulescore_annotated.h5ad"),

@@ -101,3 +101,24 @@ matchacell_annotation:
     run_label: "v1"
     n_top_genes: 100
 
+  # --> CellTypeAI (github.com/rhdaw/CellTypeAI) -- local Ollama LLM
+  # ensemble annotator, no cloud API key needed.
+  celltypeai:
+    # Species of the dataset (e.g. "Human", "Mouse").
+    species: "Human"
+    # Tissue must be one of: Adrenal, Blood, Brain, Eye, Heart, Immune
+    # system, Intestine, Kidney, Liver, Lung, Muscle, Pancreas, Placenta,
+    # Spleen, Stomach, Thymus, Skin.
+    # Leave EMPTY to skip the celltypeai rule entirely (e.g. no local Ollama
+    # server running yet, or tissue not in the supported list).
+    tissue: "Immune system"
+    # Ollama model tag already pulled locally (`ollama pull <model>`) and
+    # served by `ollama serve`. phi4:14b/qwen3:32b/qwen3:235b for accuracy
+    # (heavy RAM). phi3:mini for low RAM (~2-3GB), lighter but less accurate.
+    model: "phi3:mini"
+    num_genes: 200
+    # Ensemble prompt iterations (mode annotation is kept); higher improves
+    # accuracy at the cost of runtime.
+    n_iterations: 1
+    verbose: false
+
