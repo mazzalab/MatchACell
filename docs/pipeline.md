@@ -1,12 +1,7 @@
 # The pipeline
 
 This document covers the Snakemake side: the launcher, the configuration, the
-clustering and annotation rules, and how further annotators can be added.
-
-Step 2 is available through `python run.py -w annotation -c config.yaml -q 8`.
-The optional [scParadise annotator](scparadise.md) follows the same per-rule
-script/environment design as scANVI and CellTypist, and is enabled by configuring
-its local scAdam model directory.
+rules behind each step, and how to add an annotator.
 
 ## Architecture
 
@@ -14,19 +9,26 @@ its local scAdam model directory.
 config.yaml ──▶ run.py ──▶ Snakemake 7 API ──▶ Snakefile
                                                    │ include
                                                    ▼
-                                  workflow/rules/cluster_stability.smk
-                                                   │ shell
+                                         workflow/rules/*.smk
+                                                   │ shell, in each rule's conda env
                                                    ▼
-                            workflow/scripts/matchacell_cluster_stability.py
+                                         workflow/scripts/*
                                                    │
                                                    ▼
-                       <output_dir>/results/<sample>/matchacell/…
+                          <output_dir>/results/<sample>/matchacell/…
 ```
 
 `run.py` is a thin, matcha-themed wrapper around `snakemake.snakemake(**kwargs)`.
-The `Snakefile` normalizes `output_dir`, includes the Step-1 rule module, and
-defines the aggregating target `cluster_stability` that expands over every
-sample. The rule shells out to the Step-1 engine once per sample.
+The `Snakefile` normalizes `output_dir`, includes one rule module per step and
+per annotator, decides which optional annotators are enabled, and defines the
+aggregating targets, which expand over every sample.
+
+## Targets
+
+| Target | What it builds |
+| --- | --- |
+| `cluster_stability` | Steps 0 and 1 for every sample: the clustered `.h5ad`, its `.rds` companion and the MatchA Verdict. |
+| `annotation` | Step 2: the annotated `.h5ad` of every enabled annotator, running Step 1 first when needed. |
 
 ## The launcher: `run.py`
 
@@ -36,7 +38,7 @@ sample. The rule shells out to the Step-1 engine once per sample.
 
 | Group | Flag | Purpose |
 | --- | --- | --- |
-| Required | `-w, --workflow` | Target(s) to build. Today: `cluster_stability`. |
+| Required | `-w, --workflow` | Target(s) to build: `cluster_stability`, `annotation`. |
 | | `-c, --configfile` | Path to the YAML config. |
 | | `-q, --cores` | Cores available to Snakemake. |
 | Execution | `-n, --dry-run` | Plan jobs without running them. |
@@ -60,70 +62,111 @@ sample. The rule shells out to the Step-1 engine once per sample.
 
 `run.py` warns if the active Snakemake is not 7.x. Singularity is **off by
 default** because MatchACell ships conda environments rather than containers.
+The annotator rules are per sample, so to run a single annotator, ask Snakemake
+for its output file; see
+[Running a single annotator](annotators/README.md#running-a-single-annotator).
 
 ## Configuration: `config.yaml`
 
 ```yaml
 output_dir: "/path/to/output"     # results/ is created underneath
-extension: "h5ad"
+dtype: "h5ad"                     # "h5ad", or "rds" for Seurat/SingleCellExperiment input
+type: "singlecell"
 
 samples:
-  pbmc3k: "data/pbmc3k.h5ad"        # sample_id: path-to-input-.h5ad
+  pbmc3k: "data/pbmc3k.h5ad"        # sample_id: path-to-input
 
 matchacell_cluster_stability:
   backend: "auto"                   # auto | gpu | cpu
   n_iter: 1000                      # bootstrap iterations per resolution
   extra: ""                         # extra flags forwarded to the script
+
+matchacell_annotation:
+  annot_file: "signatures.xlsx"     # marker-gene workbook (ScoreGenes, AddModuleScore, CIA)
+  score_genes:    { ... }
+  cia:            { ... }
+  addmodulescore: { ... }
+  celltypist:     { ... }
+  scanvi:         { ... }           # skipped while reference_file is empty
+  scparadise:     { ... }           # skipped while model_dir is empty
+  cytetype:       { ... }           # skipped without an API token
+  celltypeai:     { ... }           # skipped while tissue is empty
 ```
 
 - **`samples`** maps a sample ID (used in output paths and report titles) to the
-  path of its input `.h5ad`. Add more `key: path` entries to fan out.
-- **`backend`** chooses the compute path. `auto` uses the GPU when
+  path of its input. Add more `key: path` entries to fan out.
+- **`dtype`** tells Step 0 whether inputs are `.h5ad` (copied as they are) or
+  `.rds` (converted with `workflow/scripts/rds2h5.R`).
+- **`backend`** chooses the Step 1 compute path. `auto` uses the GPU when
   `rapids-singlecell` imports successfully, otherwise CPU.
 - **`n_iter`** is the bootstrap depth. More iterations smooth the Jaccard
   estimates at the cost of runtime.
 - **`extra`** is forwarded verbatim to `matchacell_cluster_stability.py`, so any
   flag in [`cli-and-outputs.md`](cli-and-outputs.md) can be set there, e.g.
-  `"--resolutions 0.2 0.5 1.0 2.0 --skip-tsne --gpu-cell-threshold 50000"`.
+  `"--resolutions 0.2 0.5 1.0 2.0 --skip-tsne --use-hvg no"`. Use
+  `--use-hvg no` before annotation; see
+  [Keep every gene for annotation](annotators/README.md#keep-every-gene-for-annotation).
+- **`matchacell_annotation`** holds one section per annotator, documented on each
+  [annotator's page](annotators/README.md). Keep every section, even for
+  annotators you ignore: most rules read theirs when the workflow is parsed.
 
-## The rule
+## The rules
 
-`workflow/rules/cluster_stability.smk` defines one rule:
+| Step | Rule | Module | Script | Environment |
+| --- | --- | --- | --- | --- |
+| 0 | `stage_h5` | `rds2h5.smk` | `rds2h5.R` for `.rds` input, otherwise a copy | `addmodulescore.yaml` |
+| 1 | `matchacell_cluster_stability` | `cluster_stability.smk` | `matchacell_cluster_stability.py` | `matchacell.yaml` |
+| 1 | `matchacell_cluster_stability_rds` | `cluster_stability.smk` | `h52rds.R` | `addmodulescore.yaml` |
+| 2 | `score_genes` | `score_genes.smk` | `score_genes.py` | `matchacell.yaml` |
+| 2 | `addmodulescore` | `addmodulescore.smk` | `addmodulescore_tool.R`, then `rds2h5.R` | `addmodulescore.yaml` |
+| 2 | `cia` | `cia.smk` | `cia_tool.py` | `cia.yaml` |
+| 2 | `celltypist` | `celltypist.smk` | `celltypist_tool.py` | `celltypist.yaml` |
+| 2 | `scanvi` | `scanvi.smk` | `scanvi_tool.py` | `scanvi.yaml` |
+| 2 | `scparadise` | `scparadise.smk` | `scparadise_tool.py` | `scparadise.yaml` |
+| 2 | `cytetype` | `cytetype.smk` | `cytetype_tool.py` | `cytetype.yaml` |
+| 2 | `celltypeai` | `celltypeai.smk` | `celltypeai_tool.py` | `celltypeai.yaml` |
 
-```python
-rule matchacell_cluster_stability:
-    input:  h5ad   = lambda wc: config["samples"][wc.sample]
-    output: clustered_h5ad = outputDir + "results/{sample}/matchacell/clustered_multi_resolution.h5ad"
-    params: outdir, backend, n_iter, extra
-    conda:  "../envs/matchacell.yaml"
-    shell:  "python workflow/scripts/matchacell_cluster_stability.py --input … --outdir … --backend … --n-iter … {extra}"
-```
+Step 0 stages each sample as `results/<sample>/h5/<sample>.h5ad`, so later steps
+never need to know the input format.
 
-The script writes `clustered_multi_resolution.h5ad` (the tracked output) plus a
-tree of diagnostics under `params.outdir`.
+Step 1's rule reads that staged file and writes `clustered_multi_resolution.h5ad`
+and `MatchA_Verdict.txt` (its tracked outputs) plus diagnostics under
+`matchacell/`. A second rule converts the clustered object to a Seurat `.rds`
+for R-side use, including AddModuleScore.
 
-## Adding future annotators (roadmap)
+Each Step 2 rule reads the clustered object, takes the resolution from
+`MatchA_Verdict.txt`, and writes its annotated `.h5ad` (its tracked output),
+tables and plots to `annotation/<Annotator>/`. Because annotators are
+independent rules, Snakemake runs them concurrently up to `--cores`.
 
-The repository is structured so additional steps drop in cleanly:
+## Adding an annotator
 
-1. Add a script under `workflow/scripts/` (e.g. `annotate_<tool>.py`).
-2. Add a rule module under `workflow/rules/` and `include:` it from the
-   `Snakefile`.
-3. Register a new target in `WORKFLOWS` in `run.py` (and remove it from
-   `PLANNED`).
-4. Run several annotators **in parallel** by giving Snakemake the cores and
-   listing multiple targets: `./run.py -w annotate consensus -c config.yaml -q 32`.
-
-Because annotators are independent rules, Snakemake schedules them concurrently
-up to `--cores`.
+1. **Script**: `workflow/scripts/<tool>_tool.py` (or `.R`). Read the clustered
+   `.h5ad`, get the resolution with `functions_annot.extract_best_res(verdict)`,
+   and write `<tool>_annotated.h5ad` plus a per-cluster table to the output
+   folder. `functions_annot.multi_umap` draws the per-label UMAP panels.
+2. **Environment**: `workflow/envs/<tool>.yaml` with the tool's dependencies.
+3. **Rule**: `workflow/rules/<tool>.smk`, following an existing annotator, and an
+   `include:` line in the `Snakefile`.
+4. **Config**: a section under `matchacell_annotation`. If the tool needs
+   something users may not have (a model, a token, a server), read it with
+   `.get()`, add a switch in the `Snakefile` (like `_SCANVI_REFERENCE`), and make
+   its entry in `rule annotation` conditional on that switch, so a missing
+   prerequisite skips the annotator instead of failing the run.
+5. **Docs**: a page in `docs/annotators/`, a row in the
+   [annotators overview](annotators/README.md), and a row in the README table.
+6. **Test**: a dry-run scheduling test like `tests/test_scparadise_workflow.py`.
 
 ## Troubleshooting
 
-- **`AttributeError: module 'snakemake' has no attribute 'snakemake'`** — you
+- **`AttributeError: module 'snakemake' has no attribute 'snakemake'`**: you
   are on Snakemake 8.x. Install `snakemake-minimal=7.32.4` (see `environment.yml`).
-- **Singularity errors** — leave Singularity off (the default); MatchACell uses
-  conda envs.
-- **`output_dir` produced a path like `.../outputresults/...`** — fixed in the
+- **`CreateCondaEnvironmentException … Non-conda folder exists at prefix`**: mamba
+  2.x with Snakemake 7; see [installation](installation.md#mamba-2-and-snakemake-7).
+- **Singularity errors**: leave Singularity off (the default); MatchACell uses
+  conda environments.
+- **`output_dir` produced a path like `.../outputresults/...`**: fixed in the
   `Snakefile` (the trailing slash is normalized), but double-check custom edits.
-- **Conda env path** — the rule references `../envs/matchacell.yaml`; repoint it
-  if you keep a prebuilt environment elsewhere.
+- **Conda environment paths**: each rule references `../envs/<name>.yaml`;
+  repoint a rule's `conda:` directive if you keep a prebuilt environment
+  elsewhere.

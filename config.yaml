@@ -88,7 +88,7 @@ matchacell_annotation:
 
   # --> scParadise (pretrained or custom scAdam v2 model)
   scparadise:
-    # Download a tissue/species-appropriate model first; see docs/scparadise.md.
+    # Download a tissue/species-appropriate model first; see docs/annotators/scparadise.md.
     # Folder must end in scAdam and contain model_v2.pth.
     # Leave empty to skip this annotator.
     model_dir: ""

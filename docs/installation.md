@@ -47,12 +47,48 @@ in `config.yaml`, or pass `--backend gpu` via the rule's `extra` flags.
 
 ## Per-rule conda environments
 
-`workflow/rules/cluster_stability.smk` declares
-`conda: "../envs/matchacell.yaml"`. When you run with conda integration enabled
-(the default; disable with `--no-conda`), Snakemake builds that environment per
-rule. If you would rather reuse a prebuilt environment, point the `conda:`
-directive at its path, or run with `--no-conda` inside an already-activated
-`matchacell` env.
+Each rule runs in its own conda environment, which Snakemake builds on first use
+when conda integration is enabled (the default; disable with `--no-conda`). The
+first run of each step therefore spends a while creating environments.
+
+| Environment | Rules | Contents |
+| --- | --- | --- |
+| `matchacell.yaml` | `matchacell_cluster_stability`, `score_genes` | Python 3.10 single-cell stack |
+| `addmodulescore.yaml` | `stage_h5`, `matchacell_cluster_stability_rds`, `addmodulescore` | R 4.3, Seurat ≥ 5, zellkonverter, rhdf5 |
+| `cia.yaml` | `cia` | Python 3.10 + `cia-python` |
+| `celltypist.yaml` | `celltypist` | Python 3.10 + `celltypist` |
+| `scanvi.yaml` | `scanvi` | Python 3.10 + `scvi-tools`, PyTorch, JAX |
+| `scparadise.yaml` | `scparadise` | Python 3.10 + `scparadise==1.1.0`, PyTorch |
+| `cytetype.yaml` | `cytetype` | Python 3.12 + `cytetype` |
+| `celltypeai.yaml` | `celltypeai` | Python 3.12 + `celltypeai`, `ollama` |
+
+To reuse a prebuilt environment instead, point that rule's `conda:` directive at
+its path, or run with `--no-conda` inside an environment that has everything the
+rules need.
+
+### What annotators need besides their environment
+
+| Annotator | Also needs |
+| --- | --- |
+| ScoreGenes, AddModuleScore, CIA | a [signature workbook](annotators/README.md#the-signature-workbook) (`matchacell_annotation.annot_file`) |
+| CellTypist | internet access on the first run, to download its models |
+| scANVI | an annotated reference `.h5ad` |
+| scParadise | a downloaded scAdam model ([setup](annotators/scparadise.md#model-and-environment)) |
+| CyteType | a CyteType API token and internet access |
+| CellTypeAI | a running Ollama server with the model pulled ([setup](annotators/celltypeai.md#setting-up-ollama)) |
+
+### mamba 2 and Snakemake 7
+
+Snakemake 7 creates environments with `mamba` by default. With mamba 2.x
+(observed with 2.8.1), environment creation fails with:
+
+```
+CreateCondaEnvironmentException: ...
+error    libmamba Non-conda folder exists at prefix - aborting.
+```
+
+Either use mamba 1.x, or call Snakemake directly with `--conda-frontend conda`;
+`run.py` doesn't have an option for this yet.
 
 ## Example dataset
 

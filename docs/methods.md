@@ -3,6 +3,8 @@
 This document describes what the Step-1 engine
 (`workflow/scripts/matchacell_cluster_stability.py`) computes and how to read
 its output, including the important caveats around the two compute backends.
+The Step 2 annotators each describe their method on their own page in
+[`annotators/`](annotators/README.md).
 
 ## 1. Data-driven QC
 

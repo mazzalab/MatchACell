@@ -125,3 +125,8 @@ performance/
 
 Start with `MatchACell_report.html` (it bundles QC, stability, an embedding with
 a resolution switcher, transitions, and performance) and `MatchA_Verdict.txt`.
+
+## Step 2 outputs
+
+The annotators write to `annotation/<Annotator>/` alongside these files. Each
+annotator's page in [`annotators/`](annotators/README.md) lists its outputs.
