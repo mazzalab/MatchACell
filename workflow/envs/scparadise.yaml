@@ -1,0 +1,18 @@
+# Isolated annotation environment; Snakemake runs in the launcher environment.
+name: matchacell-scparadise
+channels:
+  - conda-forge
+dependencies:
+  - python=3.10
+  - scanpy>=1.9
+  - anndata>=0.10
+  - numpy>=1.25
+  - pandas
+  - scipy
+  - matplotlib-base
+  - openpyxl
+  - pytorch>=2.0
+  - pip
+  - pip:
+      # Pin the scAdam v2 API and output column contract used by the wrapper.
+      - scparadise==1.1.0

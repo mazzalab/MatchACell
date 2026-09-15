@@ -23,6 +23,7 @@ include: "workflow/rules/cytetype.smk"
 include: "workflow/rules/celltypeai.smk"
 include: "workflow/rules/addmodulescore.smk"
 include: "workflow/rules/scanvi.smk"
+include: "workflow/rules/scparadise.smk"
 
 
 SAMPLES = (
@@ -50,6 +51,9 @@ _SCANVI_REFERENCE = config["matchacell_annotation"].get("scanvi", {}).get("refer
 # tissue value; skip it out of rule annotation's required inputs when no
 # tissue is configured, instead of failing the whole Step 2 run.
 _CELLTYPEAI_TISSUE = config["matchacell_annotation"].get("celltypeai", {}).get("tissue", "")
+
+# scParadise uses a downloaded or custom scAdam model, shared by all samples.
+_SCPARADISE_MODEL = config["matchacell_annotation"].get("scparadise", {}).get("model_dir", "")
 
 
 onstart:
@@ -112,6 +116,13 @@ rule annotation:
                 sample=SAMPLES,
             )
             if _SCANVI_REFERENCE else []
+        ),
+        scparadise=(
+            expand(
+                os.path.join(outputDir, "results", "{sample}", "matchacell", "annotation", "scParadise", "scparadise_annotated.h5ad"),
+                sample=SAMPLES,
+            )
+            if _SCPARADISE_MODEL else []
         ),
 
     # input:
