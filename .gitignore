@@ -17,6 +17,8 @@ htmlcov/
 
 # ── Snakemake ──
 .snakemake/
+.smk_locks/
+logs/
 
 # ── MatchACell data & results (don't commit large artefacts) ──
 data/*.h5ad

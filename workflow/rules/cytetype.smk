@@ -26,6 +26,9 @@ rule cytetype:
         n_top_genes=method_config["n_top_genes"],
         auth_token=method_config.get("api_token", ""),
     threads: 8
+    resources:
+        mem_mb=cluster_resource("cytetype", "mem_mb", 8000),
+        runtime=cluster_resource("cytetype", "runtime", 240),
     conda:
         "../envs/cytetype.yaml"
     message:

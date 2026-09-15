@@ -26,6 +26,9 @@ rule matchacell_cluster_stability:
         # (e.g. "--resolutions 0.2 0.5 1.0 --skip-tsne").
         extra=_MC.get("extra", ""),
     threads: 8
+    resources:
+        mem_mb=cluster_resource("matchacell_cluster_stability", "mem_mb", 32000),
+        runtime=cluster_resource("matchacell_cluster_stability", "runtime", 720),
     conda:
         "../envs/matchacell.yaml"
     message:
@@ -50,6 +53,9 @@ rule matchacell_cluster_stability_rds:
         rds=outputDir + "results/{sample}/matchacell/clustered_multi_resolution.rds",
     params:
         outdir=outputDir + "results/{sample}/matchacell",
+    resources:
+        mem_mb=cluster_resource("matchacell_cluster_stability_rds", "mem_mb", 32000),
+        runtime=cluster_resource("matchacell_cluster_stability_rds", "runtime", 120),
     conda:
         # h52rds.R needs zellkonverter (not just Seurat/rhdf5) -- same R env
         # addmodulescore already uses, reused here rather than duplicated.

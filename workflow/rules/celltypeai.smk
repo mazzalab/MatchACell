@@ -29,6 +29,9 @@ rule celltypeai:
         # does simple {attribute} substitution, not inline python ternaries.
         verbose_flag=("--verbose" if method_config.get("verbose", False) else ""),
     threads: 8
+    resources:
+        mem_mb=cluster_resource("celltypeai", "mem_mb", 16000),
+        runtime=cluster_resource("celltypeai", "runtime", 480),
     conda:
         "../envs/celltypeai.yaml"
     message:

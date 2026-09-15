@@ -23,6 +23,9 @@ rule score_genes:
         verdict_file=os.path.join(outputDir,"results","{sample}","matchacell","MatchA_Verdict.txt"),
         threshold=method_config["threshold"]
     threads: 8
+    resources:
+        mem_mb=cluster_resource("score_genes", "mem_mb", 16000),
+        runtime=cluster_resource("score_genes", "runtime", 120),
     conda:
         "../envs/matchacell.yaml"
     message:

@@ -87,8 +87,9 @@ CreateCondaEnvironmentException: ...
 error    libmamba Non-conda folder exists at prefix - aborting.
 ```
 
-Either use mamba 1.x, or call Snakemake directly with `--conda-frontend conda`;
-`run.py` doesn't have an option for this yet.
+`run.py` avoids this by creating environments with conda by default
+(`--conda-frontend conda`); pass `--conda-frontend mamba` only with mamba 1.x.
+When calling Snakemake directly, add `--conda-frontend conda` yourself.
 
 ## Example dataset
 

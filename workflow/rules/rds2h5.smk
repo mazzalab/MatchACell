@@ -27,6 +27,9 @@ rule stage_h5:
     params:
         outdir=outputDir + "results/{sample}",
         dtype=_DTYPE,
+    resources:
+        mem_mb=cluster_resource("stage_h5", "mem_mb", 16000),
+        runtime=cluster_resource("stage_h5", "runtime", 120),
     conda:
         # rds2h5.R needs Seurat/rhdf5/SingleCellExperiment/optparse -- the
         # same R env addmodulescore already uses, reused here rather than

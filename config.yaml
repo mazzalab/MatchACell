@@ -143,3 +143,11 @@ matchacell_annotation:
     n_iterations: 1
     verbose: false
 
+# ── PBS cluster resources (./run.py --cluster) ────────────────────────────
+# Each rule requests its own memory (mem_mb) and walltime (runtime, minutes);
+# the defaults are listed in docs/pipeline.md. Override them per rule here, e.g.
+# for a large dataset:
+# cluster_resources:
+#   matchacell_cluster_stability: {mem_mb: 64000, runtime: 1440}
+#   scanvi: {mem_mb: 128000, runtime: 1440}
+

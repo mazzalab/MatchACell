@@ -47,24 +47,100 @@ aggregating targets, which expand over every sample.
 | | `-u, --unlock` | Unlock the working directory. |
 | | `--keep-going` | Continue independent jobs after a failure. |
 | | `--latency-wait` | Seconds to wait for outputs on slow filesystems. |
+| Cluster (PBS) | `-cl, --cluster` | Submit each job as its own PBS job via `qsub` instead of running everything locally. |
+| | `-qu, --queue` | PBS queue (default `workq`). |
+| | `-j, --jobs` | Maximum number of PBS jobs at once (default 20). |
+| | `-rt, --restart-times` | Resubmit a failed job up to N times, with more memory and walltime each attempt (default 2). |
 | Reporting | `--list-workflows` | Show targets (including planned ones) and exit. |
 | | `-d, --dag` | Emit the DAG in DOT format. |
 | | `-p, --printshellcmds` | Print shell commands. |
 | | `-l, --lint` | Run Snakemake lint (`text`/`json`). |
 | Environment | `--no-conda` | Disable per-rule conda (on by default). |
 | | `--conda-prefix` | Shared conda prefix directory. |
+| | `--conda-frontend` | `conda` (default) or `mamba`. Snakemake 7 can't create environments with mamba 2.x. |
+| | `--conda-create-envs-only` | Build the environments the targets need, then exit. |
 | | `--use-singularity` | Enable containers (off by default). |
 | | `--bind`, `--singularity-args` | Container bind paths / extra args. |
 | | `-di, --directory` | Working directory. |
 | | `--snakefile` | Custom Snakefile path. |
 | Advanced | `--resources` | `key=value` Snakemake resources, e.g. `mem_mb=64000`. |
-| | `--allow-custom-target` | Run an arbitrary rule name. |
+| | `--allow-custom-target` | Run an arbitrary rule name or output file. |
 
 `run.py` warns if the active Snakemake is not 7.x. Singularity is **off by
 default** because MatchACell ships conda environments rather than containers.
 The annotator rules are per sample, so to run a single annotator, ask Snakemake
 for its output file; see
 [Running a single annotator](annotators/README.md#running-a-single-annotator).
+
+`run.py` allows **one run per config file at a time**. A second `run.py` on the
+same config stops immediately, while runs of different configs from the same
+checkout go ahead side by side. This replaces Snakemake's own lock, which covers
+the whole working directory. The lock is released however `run.py` exits, so a
+killed run needs no `--unlock`.
+
+## Running on a PBS cluster
+
+```bash
+./run.py -w annotation -c config.yaml -q 1 -cl -qu workq -j 20
+```
+
+With `--cluster`, `run.py` stays running as the scheduler and submits every job
+with `qsub`, using OpenPBS / PBS Pro syntax:
+
+```
+qsub -q <queue> -l select=1:ncpus=<threads>:mem=<mem_mb>mb -l walltime=<runtime>:00 \
+     -N smk.<rule>.<jobid> -o logs/pbs/<rule>.<jobid>.out -e logs/pbs/<rule>.<jobid>.err
+```
+
+- **CPUs** come from each rule's `threads`; `-q` is ignored.
+- **Memory and walltime** come from each rule's `resources` (table below).
+- **Logs** for every job are written to `logs/pbs/` in the repository.
+- **Failed jobs** are resubmitted up to `--restart-times` times. Each attempt
+  multiplies memory and walltime by the attempt number, so a job killed for
+  exceeding its limits comes back with twice, then three times, as much.
+- **The aggregating targets** (`cluster_stability`, `annotation`) only collect
+  files and run inside the scheduler, never as PBS jobs.
+
+### Resources per rule
+
+| Rule | Memory | Walltime |
+| --- | --- | --- |
+| `stage_h5` | 16 GB | 2 h |
+| `matchacell_cluster_stability` | 32 GB | 12 h |
+| `matchacell_cluster_stability_rds` | 32 GB | 2 h |
+| `score_genes` | 16 GB | 2 h |
+| `cia` | 16 GB | 3 h |
+| `celltypist` | 16 GB | 3 h |
+| `addmodulescore` | 32 GB | 4 h |
+| `scanvi` | 64 GB | 12 h |
+| `scparadise` | 32 GB | 4 h |
+| `cytetype` | 8 GB | 4 h |
+| `celltypeai` | 16 GB | 8 h |
+
+These fit datasets of tens of thousands of cells. For larger ones, override any
+rule in the config (`runtime` is in minutes):
+
+```yaml
+cluster_resources:
+  matchacell_cluster_stability: {mem_mb: 64000, runtime: 1440}
+  scanvi: {mem_mb: 128000, runtime: 1440}
+```
+
+### Before the first cluster run
+
+- **Build the conda environments as a job.** The scheduler creates any missing
+  environment itself before submitting, which is heavy work for a login node.
+  Run `./run.py -w annotation -c config.yaml -q 4 --conda-create-envs-only` as a
+  PBS job from your launcher environment first.
+- **CyteType:** jobs don't inherit your shell's environment variables, so
+  `CYTETYPE_API_TOKEN` only enables the rule on the scheduler. Save the
+  credentials once with `cytetype setup` so jobs can authenticate. The token is
+  deliberately not passed on the `qsub` command line, where `qstat -f` would show
+  it to other users.
+- **CellTypist** downloads its models on the first run; compute nodes need
+  internet access, or download the models beforehand.
+- **CellTypeAI** needs its Ollama server reachable from the compute node that
+  runs the job.
 
 ## Configuration: `config.yaml`
 

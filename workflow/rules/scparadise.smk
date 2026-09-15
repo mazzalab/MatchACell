@@ -33,6 +33,9 @@ rule scparadise:
         device=_SCP.get("device", "auto"),
         seed=_SCP.get("seed", 0),
     threads: _SCP.get("n_threads", 8)
+    resources:
+        mem_mb=cluster_resource("scparadise", "mem_mb", 32000),
+        runtime=cluster_resource("scparadise", "runtime", 240),
     conda:
         "../envs/scparadise.yaml"
     message:

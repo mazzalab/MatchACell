@@ -24,6 +24,9 @@ rule cia:
         threshold=method_config["threshold"],
         ncpus=method_config["ncpus"]
     threads: 8
+    resources:
+        mem_mb=cluster_resource("cia", "mem_mb", 16000),
+        runtime=cluster_resource("cia", "runtime", 180),
     conda:
         "../envs/cia.yaml"
     message:

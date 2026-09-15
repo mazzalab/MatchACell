@@ -88,6 +88,9 @@ python tools/fetch_pbmc3k.py data/pbmc3k.h5ad
 # 5. Step 2: every enabled annotator (runs Step 1 first if needed)
 ./run.py -w annotation -c config.yaml -q 8
 
+# On a PBS cluster, submit every job with qsub instead (see docs/pipeline.md)
+./run.py -w annotation -c config.yaml -q 1 -cl -qu workq -j 20
+
 # List the targets
 ./run.py --list-workflows
 ```

@@ -30,6 +30,9 @@ rule scanvi:
         batch_size=method_config.get("batch_size", 2048),
         n_threads=method_config.get("n_threads", 10),
     threads: 10
+    resources:
+        mem_mb=cluster_resource("scanvi", "mem_mb", 64000),
+        runtime=cluster_resource("scanvi", "runtime", 720),
     conda:
         "../envs/scanvi.yaml"
     message:

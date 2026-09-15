@@ -23,6 +23,9 @@ rule celltypist:
         verdict_file=os.path.join(outputDir,"results","{sample}","matchacell","MatchA_Verdict.txt"),
         models=method_config["models"],
     threads: 8
+    resources:
+        mem_mb=cluster_resource("celltypist", "mem_mb", 16000),
+        runtime=cluster_resource("celltypist", "runtime", 180),
     conda:
         "../envs/celltypist.yaml"
     message:

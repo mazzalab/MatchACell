@@ -14,6 +14,15 @@ Dry-run Step 1 (QC + cluster-stability):
 Run Step 1:
     ./run.py -w cluster_stability -c config.yaml -q 16
 
+Run Step 2 (every enabled annotator):
+    ./run.py -w annotation -c config.yaml -q 16
+
+Submit each job as its own PBS job, at most 20 at a time:
+    ./run.py -w annotation -c config.yaml -q 1 -cl -qu workq -j 20
+
+Build the per-rule conda environments without running anything:
+    ./run.py -w annotation -c config.yaml -q 4 --conda-create-envs-only
+
 Run with shell commands and reasons printed:
     ./run.py -w cluster_stability -c config.yaml -q 16 --printshellcmds
 
@@ -30,6 +39,8 @@ Unlock the working directory after an interrupted run:
 from __future__ import annotations
 
 import argparse
+import fcntl
+import hashlib
 import os
 import platform
 import sys
@@ -64,6 +75,12 @@ except Exception:  # pragma: no cover
 
 
 THIS_DIR = Path(__file__).resolve().parent
+
+# PBS fallback for rules that don't declare `resources: mem_mb`/`runtime`
+# (every MatchACell rule does; see cluster_resource() in the Snakefile).
+# Only used with --cluster; local runs are unaffected.
+CLUSTER_DEFAULT_MEM_MB = 8000
+CLUSTER_DEFAULT_RUNTIME_MIN = 120
 
 # --------------------------------------------------------------------------- #
 # Matcha theme (truecolor; mirrors workflow/scripts/matchacell_cluster_stability.py)
@@ -140,7 +157,7 @@ WORKFLOWS: Dict[str, str] = {
         "optimizer, producing the MatchA Verdict."
     ),
     "annotation": (
-        "Step 2 — cell type annotation "
+        "Step 2 — cell type annotation with every enabled annotator."
     ),
 }
 
@@ -225,6 +242,57 @@ def build_singularity_args(args: argparse.Namespace) -> str:
     return " ".join(pieces).strip()
 
 
+# --------------------------------------------------------------------------- #
+# Locking and PBS submission
+# --------------------------------------------------------------------------- #
+def acquire_project_lock(configfile: Path):
+    """Refuse a second concurrent run of the same config, without locking the repo.
+
+    Snakemake's own lock covers the whole working directory, so runs of two
+    *different* configs from this repository would wait on each other. This lock
+    is keyed on the config file's absolute path instead (Snakemake's is disabled
+    with lock=False), and the kernel releases the flock however the process exits,
+    so a killed run needs no --unlock. The caller must keep the returned handle
+    referenced for the life of the process.
+    """
+    lock_dir = THIS_DIR / ".smk_locks"
+    lock_dir.mkdir(exist_ok=True)
+    key = hashlib.sha1(str(configfile.resolve()).encode()).hexdigest()[:16]
+    lock_path = lock_dir / f"{key}.lock"
+    handle = open(lock_path, "a+")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except OSError:
+        handle.close()
+        die(
+            f"Another run.py is already running config '{configfile}' (lock: {lock_path}). "
+            "Two runs of the same config would race on the same output files; wait for "
+            "the other one to finish."
+        )
+    handle.seek(0)
+    handle.truncate()
+    handle.write(str(os.getpid()))
+    handle.flush()
+    return handle
+
+
+def build_cluster_cmd(queue: str, logdir: Path) -> str:
+    """qsub command Snakemake runs for each job (OpenPBS / PBS Pro `select` syntax).
+
+    Doubled braces are Snakemake's own per-job placeholders and survive this
+    .format() call; only the queue and log directory are filled in here.
+    """
+    template = (
+        "qsub -q {queue} "
+        "-l select=1:ncpus={{threads}}:mem={{resources.mem_mb}}mb "
+        "-l walltime={{resources.runtime}}:00 "
+        "-N smk.{{rule}}.{{jobid}} "
+        "-o {logdir}/{{rule}}.{{jobid}}.out "
+        "-e {logdir}/{{rule}}.{{jobid}}.err"
+    )
+    return template.format(queue=queue, logdir=logdir)
+
+
 def print_run_summary(args, snakefile, configfile, config, singularity_args, resources) -> None:
     samples = normalize_samples(config.get("samples"))
     output_dir = config.get("output_dir", "not found in config")
@@ -236,7 +304,8 @@ def print_run_summary(args, snakefile, configfile, config, singularity_args, res
     print(f"{matcha('Snakefile:')}        {snakefile}")
     print(f"{matcha('Config:')}           {configfile}")
     print(f"{matcha('Targets:')}          {', '.join(args.workflow or [])}")
-    print(f"{matcha('Cores:')}            {args.cores}")
+    cores_note = " (ignored with --cluster)" if args.cluster else ""
+    print(f"{matcha('Cores:')}            {args.cores}{cores_note}")
     print(f"{matcha('Workdir:')}          {args.directory or os.getcwd()}")
     print(f"{matcha('Output dir:')}       {output_dir}")
     print(f"{matcha('Backend:')}          {mc.get('backend', 'n/a')}")
@@ -248,7 +317,9 @@ def print_run_summary(args, snakefile, configfile, config, singularity_args, res
             preview += f", … +{len(samples) - 8} more"
         print(f"{matcha('Sample IDs:')}       {preview}")
     print(f"{matcha('Dry run:')}          {args.dry_run}")
-    print(f"{matcha('Use conda:')}        {not args.no_conda}")
+    print(f"{matcha('Use conda:')}        {not args.no_conda} (frontend: {args.conda_frontend})")
+    if args.conda_create_envs_only:
+        print(matcha("Conda envs only:   yes (nothing else runs)"))
     print(f"{matcha('Use Singularity:')}  {args.use_singularity}")
     if args.use_singularity and singularity_args:
         print(f"{matcha('Singularity args:')} {singularity_args}")
@@ -260,6 +331,10 @@ def print_run_summary(args, snakefile, configfile, config, singularity_args, res
         print(matcha("Rerun incomplete:  yes"))
     if args.keep_going:
         print(matcha("Keep going:        yes"))
+    if args.cluster:
+        print(f"{matcha('PBS cluster:')}      queue {args.queue}, at most {args.jobs} jobs at once")
+        print(f"{matcha('Restart times:')}    {args.restart_times}")
+        print(f"{matcha('PBS logs:')}         {THIS_DIR / 'logs' / 'pbs'}")
     print()
 
 
@@ -269,7 +344,7 @@ def validate_args(args, snakefile: Path, configfile: Path) -> None:
     if not configfile.exists():
         die(f"Cannot find config file: {configfile}")
     if not args.unlock and not args.workflow:
-        die("No workflow target provided. Use -w cluster_stability (see --list-workflows).")
+        die(f"No workflow target provided. Use -w {' or '.join(WORKFLOWS)} (see --list-workflows).")
     if args.workflow and not args.allow_custom_target:
         known = {**WORKFLOWS, **PLANNED}
         invalid = [t for t in args.workflow if t not in known]
@@ -310,6 +385,30 @@ def run_snakemake(args: argparse.Namespace) -> int:
     resources = parse_resources(args.resources)
     singularity_args = build_singularity_args(args)
 
+    # Held for the whole run; replaces Snakemake's directory-wide lock (lock=False).
+    _project_lock = acquire_project_lock(configfile)  # noqa: F841
+
+    cores = args.cores
+    cluster_kwargs: Dict[str, Any] = {}
+    if args.cluster:
+        logdir = THIS_DIR / "logs" / "pbs"
+        logdir.mkdir(parents=True, exist_ok=True)
+        from snakemake.resources import DefaultResources
+
+        cluster_kwargs = {
+            "cluster": build_cluster_cmd(args.queue, logdir),
+            "nodes": args.jobs,
+            "restart_times": args.restart_times,
+            "default_resources": DefaultResources(
+                [f"mem_mb={CLUSTER_DEFAULT_MEM_MB}", f"runtime={CLUSTER_DEFAULT_RUNTIME_MIN}"]
+            ),
+        }
+        # Snakemake caps each rule's threads at `cores` before filling {threads}
+        # into the qsub template, even in cluster mode: with -q 1, an 8-thread rule
+        # would be submitted with ncpus=1. A sentinel above any rule's threads keeps
+        # them intact; -q itself doesn't matter once --cluster is set.
+        cores = 999
+
     print_run_summary(args, snakefile, configfile, config, singularity_args, resources)
 
     snakemake_kwargs: Dict[str, Any] = {
@@ -317,19 +416,23 @@ def run_snakemake(args: argparse.Namespace) -> int:
         "configfiles": [str(configfile)],
         "targets": args.workflow or [],
         "workdir": workdir,
-        "cores": args.cores,
+        "cores": cores,
         "dryrun": args.dry_run,
         "use_conda": not args.no_conda,
+        "conda_frontend": args.conda_frontend,
+        "conda_create_envs_only": args.conda_create_envs_only,
         "use_singularity": args.use_singularity,
         "singularity_args": singularity_args,
         "forceall": args.forceall,
         "force_incomplete": args.rerun_incomplete,
         "unlock": args.unlock,
+        "lock": False,
         "printdag": args.dag,
         "lint": args.lint,
         "printshellcmds": args.printshellcmds,
         "keepgoing": args.keep_going,
         "latency_wait": args.latency_wait,
+        **cluster_kwargs,
     }
     if resources:
         snakemake_kwargs["resources"] = resources
@@ -360,8 +463,14 @@ Examples:
   {matcha('./run.py -w cluster_stability -c config.yaml -q 16 -n')}
       Dry-run Step 1 (QC + cluster stability).
 
-  {matcha('./run.py -w cluster_stability -c config.yaml -q 16')}
-      Run Step 1.
+  {matcha('./run.py -w annotation -c config.yaml -q 16')}
+      Run Step 2 (and Step 1 first, if needed) on this machine.
+
+  {matcha('./run.py -w annotation -c config.yaml -q 1 -cl -qu workq -j 20')}
+      Submit each job as its own PBS job via qsub, at most 20 at a time.
+
+  {matcha('./run.py -w annotation -c config.yaml -q 4 --conda-create-envs-only')}
+      Only build the per-rule conda environments.
 
   {matcha('./run.py --list-workflows')}
       Show available workflow targets.
@@ -373,11 +482,11 @@ Examples:
 
     required = parser.add_argument_group("Required for normal execution")
     required.add_argument("-w", "--workflow", nargs="+",
-                          help="Workflow target(s). Currently: cluster_stability.")
+                          help=f"Workflow target(s): {', '.join(WORKFLOWS)}.")
     required.add_argument("-c", "--configfile",
                           help="Path to the YAML/JSON Snakemake config file.")
     required.add_argument("-q", "--cores", type=int, default=1,
-                          help="Number of CPU cores available to Snakemake.")
+                          help="Number of CPU cores available to Snakemake (ignored with --cluster).")
 
     execution = parser.add_argument_group("Execution mode")
     execution.add_argument("-n", "--dry-run", action="store_true",
@@ -392,6 +501,19 @@ Examples:
                            help="Continue independent jobs after one job fails.")
     execution.add_argument("--latency-wait", type=int, default=60,
                            help="Seconds to wait for outputs on slow filesystems.")
+
+    cluster = parser.add_argument_group("Cluster (PBS)")
+    cluster.add_argument("-cl", "--cluster", action="store_true",
+                         help="Submit each rule instance as its own PBS job via qsub, instead of "
+                              "running everything locally (default off; plain -q N still runs "
+                              "everything locally with N cores).")
+    cluster.add_argument("-qu", "--queue", type=str, default="workq",
+                         help="PBS queue to submit to when --cluster is set.")
+    cluster.add_argument("-j", "--jobs", type=int, default=20,
+                         help="Max number of concurrent PBS jobs when --cluster is set.")
+    cluster.add_argument("-rt", "--restart-times", type=int, default=2,
+                         help="With --cluster, resubmit a failed job up to this many times; each "
+                              "attempt multiplies the rule's mem_mb and runtime by the attempt number.")
 
     reporting = parser.add_argument_group("Reporting and debugging")
     reporting.add_argument("--list-workflows", "--show-workflows",
@@ -413,6 +535,11 @@ Examples:
                              help="Disable Snakemake conda integration (on by default).")
     environment.add_argument("--conda-prefix", type=str, default=None,
                              help="Optional Snakemake conda prefix directory.")
+    environment.add_argument("--conda-frontend", choices=["conda", "mamba"], default="conda",
+                             help="Tool that creates the per-rule environments. Snakemake 7 "
+                                  "fails to create them with mamba 2.x.")
+    environment.add_argument("--conda-create-envs-only", action="store_true",
+                             help="Only create the conda environments the targets need, then exit.")
     environment.add_argument("--use-singularity", action="store_true",
                              help="Enable Singularity/Apptainer (off by default; "
                                   "MatchACell uses conda envs).")
@@ -427,7 +554,8 @@ Examples:
     advanced.add_argument("--resources", nargs="+", default=None,
                           help="Custom Snakemake resources, e.g. --resources mem_mb=64000.")
     advanced.add_argument("--allow-custom-target", action="store_true",
-                          help="Allow running rule names not listed among the main targets.")
+                          help="Allow running rule names or output files not listed among the "
+                               "main targets.")
 
     return parser
 

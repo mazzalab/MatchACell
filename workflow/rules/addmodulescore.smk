@@ -25,6 +25,9 @@ rule addmodulescore:
         verdict_file=os.path.join(outputDir,"results","{sample}","matchacell","MatchA_Verdict.txt"),
         threshold=method_config["threshold"]
     threads: 4
+    resources:
+        mem_mb=cluster_resource("addmodulescore", "mem_mb", 32000),
+        runtime=cluster_resource("addmodulescore", "runtime", 240),
     conda:
         "../envs/addmodulescore.yaml"
     message:

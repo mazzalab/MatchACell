@@ -8,6 +8,23 @@ import os
 # Normalize the output directory so concatenation always has a separator.
 outputDir = config["output_dir"].rstrip("/") + "/"
 
+# ── PBS cluster resources ─────────────────────────────────────────────────
+# Memory (MB) and walltime (minutes) each rule requests when `run.py --cluster`
+# submits it as a PBS job; local runs don't use them. Every retry
+# (`--restart-times`) multiplies both by the attempt number, so a job killed for
+# exceeding its limits comes back with more. Override them per rule in the
+# config, e.g.  cluster_resources: {scanvi: {mem_mb: 128000, runtime: 1440}}
+_CLUSTER_RESOURCES = config.get("cluster_resources") or {}
+
+
+def cluster_resource(rule_name, key, default):
+    base = int((_CLUSTER_RESOURCES.get(rule_name) or {}).get(key, default))
+    return lambda wildcards, attempt: base * attempt
+
+
+# The aggregating targets only collect files; never submit them as PBS jobs.
+localrules: cluster_stability, annotation
+
 # ── Included modules ──────────────────────────────────────────────────────
 # Step 0. Stage every sample as .h5ad (converting from .rds when needed).
 include: "workflow/rules/rds2h5.smk"
