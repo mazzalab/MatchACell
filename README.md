@@ -1,7 +1,11 @@
-<h1 align="center">🍵 MatchACell</h1>
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/logo/matchacell-logo-dark.svg">
+    <img src="docs/logo/matchacell-logo.svg" alt="MatchACell" width="340">
+  </picture>
+</p>
 
 <p align="center">
-  <em>Matcha-grade single-cell consensus.</em><br>
   A Snakemake toolkit for single-cell type/state annotation.
 </p>
 
