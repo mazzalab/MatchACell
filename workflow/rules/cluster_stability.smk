@@ -7,6 +7,11 @@
 
 _MC = config["matchacell_cluster_stability"]
 
+# type: "normalized" -> the input .X is already log-normalized (raw counts in
+# layers["counts"]): QC, normalization and HVG are skipped and clustering runs
+# on the input's own embedding (use_rep; "auto" prefers X_pca_harmony).
+_NORMALIZED_FLAG = "--normalized" if config.get("type", "singlecell") == "normalized" else ""
+
 
 rule matchacell_cluster_stability:
     """Run QC + multi-resolution Leiden + bootstrap-Jaccard stability for one
@@ -25,6 +30,8 @@ rule matchacell_cluster_stability:
         # Free-form extra flags forwarded verbatim to the script
         # (e.g. "--resolutions 0.2 0.5 1.0 --skip-tsne").
         extra=_MC.get("extra", ""),
+        normalized=_NORMALIZED_FLAG,
+        use_rep=_MC.get("use_rep", "auto"),
     threads: 8
     resources:
         mem_mb=cluster_resource("matchacell_cluster_stability", "mem_mb", 32000),
@@ -40,6 +47,8 @@ rule matchacell_cluster_stability:
             --outdir  {params.outdir} \
             --backend {params.backend} \
             --n-iter  {params.n_iter} \
+            --use-rep {params.use_rep} \
+            {params.normalized} \
             {params.extra}
         """
 

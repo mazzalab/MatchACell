@@ -597,10 +597,35 @@ def qc_diagnostics(adata, keep_mask, nmads, nmads_pct, outdir: Path):
 # =========================================================================== #
 # Preprocessing + clustering + embeddings
 # =========================================================================== #
+def resolve_use_rep(adata, use_rep, normalized):
+    """Embedding used for neighbors, Leiden and the bootstrap. 'auto' keeps the
+    input's own embedding (harmony first) for normalized input, else X_pca."""
+    if use_rep == "auto":
+        if normalized:
+            for key in ("X_pca_harmony", "X_pca"):
+                if key in adata.obsm:
+                    return key
+        return "X_pca"
+    if use_rep != "X_pca" and use_rep not in adata.obsm:
+        raise SystemExit(f"--use-rep {use_rep}: not found in .obsm "
+                         f"(available: {list(adata.obsm.keys())}).")
+    return use_rep
+
+
 def preprocess_and_cluster(adata, rsc, use_gpu, resolutions, n_pcs, n_neighbors,
-                           use_hvg, do_tsne, do_umap, target_sum=None):
-    sc.pp.filter_genes(adata, min_cells=1)
-    adata.layers["counts"] = adata.X.copy()
+                           use_hvg, do_tsne, do_umap, target_sum=None,
+                           normalized=False, use_rep="X_pca"):
+    if normalized:
+        # Already log-normalized input (raw counts, if any, in layers["counts"]):
+        # no gene filtering, normalization or HVG subsetting -- every gene is
+        # kept for the annotators.
+        adata.layers["lognorm"] = adata.X.copy()
+        if "counts" not in adata.layers:
+            log.warning("Normalized input has no layers['counts']; annotators "
+                        "that model raw counts (scANVI) will fail.")
+    else:
+        sc.pp.filter_genes(adata, min_cells=1)
+        adata.layers["counts"] = adata.X.copy()
 
     if use_gpu:
         rsc.get.anndata_to_GPU(adata)
@@ -608,11 +633,12 @@ def preprocess_and_cluster(adata, rsc, use_gpu, resolutions, n_pcs, n_neighbors,
     pp = rsc.pp if use_gpu else sc.pp
     tl = rsc.tl if use_gpu else sc.tl
 
-    pp.normalize_total(adata, target_sum=target_sum)
-    pp.log1p(adata)
-    adata.layers["lognorm"] = adata.X.copy()
+    if not normalized:
+        pp.normalize_total(adata, target_sum=target_sum)
+        pp.log1p(adata)
+        adata.layers["lognorm"] = adata.X.copy()
 
-    if use_hvg:
+    if use_hvg and not normalized:
         pp.highly_variable_genes(adata, n_top_genes=2000)
         # Subset to HVG for PCA/clustering. Note: this also subsets the `counts`
         # and `lognorm` layers to the HVG set. We deliberately do NOT set
@@ -620,8 +646,12 @@ def preprocess_and_cluster(adata, rsc, use_gpu, resolutions, n_pcs, n_neighbors,
         # write; full-gene matrices are not needed for the stability step.
         adata = adata[:, adata.var["highly_variable"]].copy()
 
-    pp.pca(adata, n_comps=n_pcs)
-    pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_pcs)
+    if use_rep == "X_pca" and not (normalized and "X_pca" in adata.obsm):
+        pp.pca(adata, n_comps=n_pcs)
+    else:
+        log.info("Using existing embedding %s (no PCA).", use_rep)
+    n_dims = min(n_pcs, adata.obsm[use_rep].shape[1])
+    pp.neighbors(adata, n_neighbors=n_neighbors, n_pcs=n_dims, use_rep=use_rep)
 
     for res in resolutions:
         key = f"leiden_{res}"
@@ -641,7 +671,7 @@ def preprocess_and_cluster(adata, rsc, use_gpu, resolutions, n_pcs, n_neighbors,
             log.warning("UMAP skipped: %s", e)
     if do_tsne:
         try:
-            tl.tsne(adata)
+            tl.tsne(adata, use_rep=use_rep)
             log.info("t-SNE computed.")
         except Exception as e:  # pragma: no cover
             log.warning("t-SNE skipped: %s", e)
@@ -710,7 +740,7 @@ def _cluster_subsample(pca_sub, resolution, rsc, use_gpu, n_neighbors):
 
 
 def bootstrap_stability(adata, res_key, resolution, rsc, use_gpu, n_iter,
-                        fraction, n_neighbors, rng, X_dev=None):
+                        fraction, n_neighbors, rng, X_dev=None, use_rep="X_pca"):
     """Bootstrap Jaccard stability for one resolution.
 
     When `X_dev` is provided (a cupy array of the full PCA matrix already on the
@@ -730,7 +760,7 @@ def bootstrap_stability(adata, res_key, resolution, rsc, use_gpu, n_iter,
     if use_dev:
         import cupy as cp
     else:
-        X_host = np.asarray(adata.obsm["X_pca"], dtype="float32")
+        X_host = np.asarray(adata.obsm[use_rep], dtype="float32")
 
     for it in range(n_iter):
         idx = rng.choice(n, size=k, replace=False)
@@ -761,7 +791,7 @@ def bootstrap_stability(adata, res_key, resolution, rsc, use_gpu, n_iter,
 
 
 def run_all_stability(adata, leiden_keys, rsc, use_gpu, n_iter, fraction,
-                      n_neighbors, outdir, rng, perf=None):
+                      n_neighbors, outdir, rng, perf=None, use_rep="X_pca"):
     stabdir = outdir / "stability"
     stabdir.mkdir(parents=True, exist_ok=True)
     excel_path = stabdir / "Cluster_Stability_Summary.xlsx"
@@ -773,7 +803,7 @@ def run_all_stability(adata, leiden_keys, rsc, use_gpu, n_iter, fraction,
         try:
             import cupy as cp
 
-            X_dev = cp.asarray(np.asarray(adata.obsm["X_pca"], dtype="float32"))
+            X_dev = cp.asarray(np.asarray(adata.obsm[use_rep], dtype="float32"))
             log.info("PCA matrix moved to GPU once (%s rows) for the bootstrap.",
                      X_dev.shape[0])
             # Warm-up: compile/init cuML+cuGraph kernels so the first timed
@@ -798,7 +828,8 @@ def run_all_stability(adata, leiden_keys, rsc, use_gpu, n_iter, fraction,
             log.info("Stability for %s ...", res_key)
             t0 = time.perf_counter()
             res, k = bootstrap_stability(adata, res_key, resolution, rsc, use_gpu,
-                                         n_iter, fraction, n_neighbors, rng, X_dev=X_dev)
+                                         n_iter, fraction, n_neighbors, rng, X_dev=X_dev,
+                                         use_rep=use_rep)
             secs = time.perf_counter() - t0
             if perf is not None:
                 perf.add_stability(res_key.replace("leiden_", ""),
@@ -1249,6 +1280,14 @@ def parse_args(argv=None):
     p.add_argument("--n-pcs", type=int, default=50)
     p.add_argument("--n-neighbors", type=int, default=15)
     p.add_argument("--use-hvg", choices=["auto", "yes", "no"], default="auto")
+    p.add_argument("--normalized", action="store_true",
+                   help="Input .X is already log-normalized (raw counts in "
+                        "layers['counts']): skip QC, normalization and HVG, go "
+                        "straight to clustering.")
+    p.add_argument("--use-rep", default="auto",
+                   help="Embedding (.obsm key) for neighbors, Leiden and the "
+                        "bootstrap. 'auto': X_pca_harmony or X_pca from a "
+                        "--normalized input, otherwise a fresh X_pca.")
 
     # embeddings
     p.add_argument("--skip-embeddings", action="store_true")
@@ -1304,7 +1343,9 @@ def main(argv=None):
     log.info("Loaded: %d cells x %d genes.", adata.n_obs, adata.n_vars)
 
     qc_obs = None
-    if not args.skip_qc:
+    if args.normalized:
+        log.info("Normalized input (--normalized): skipping QC and normalization.")
+    elif not args.skip_qc:
         with stage("qc"):
             adata, qc_summary, qc_obs = data_driven_qc(
                 adata, nmads=args.qc_nmads, nmads_pct=args.qc_nmads_pct,
@@ -1315,15 +1356,19 @@ def main(argv=None):
     else:
         log.info("Skipping QC (--skip-qc).")
 
-    use_hvg = (args.use_hvg == "yes") or (args.use_hvg == "auto" and adata.n_vars > 2000)
+    use_hvg = not args.normalized and (
+        (args.use_hvg == "yes") or (args.use_hvg == "auto" and adata.n_vars > 2000))
     log.info("HVG selection: %s", use_hvg)
+    use_rep = resolve_use_rep(adata, args.use_rep, args.normalized)
+    log.info("Clustering embedding: %s", use_rep)
     with stage("preprocess_cluster_embed"):
         adata = preprocess_and_cluster(
             adata, rsc, use_gpu, args.resolutions, args.n_pcs, args.n_neighbors,
-            use_hvg, do_tsne=not args.skip_tsne, do_umap=not args.skip_umap)
+            use_hvg, do_tsne=not args.skip_tsne, do_umap=not args.skip_umap,
+            normalized=args.normalized, use_rep=use_rep)
 
     clustered_path = args.outdir / "clustered_multi_resolution.h5ad"
-    adata.uns["MatchACell"] = {"scent": MATCHA_SCENT}
+    adata.uns["MatchACell"] = {"scent": MATCHA_SCENT, "use_rep": use_rep}
     adata.write(clustered_path)
     log.info("Saved clustered object -> %s", clustered_path)
 
@@ -1355,7 +1400,7 @@ def main(argv=None):
         with stage("stability"):
             master = run_all_stability(adata, leiden_keys, rsc, stab_use_gpu, args.n_iter,
                                        args.fraction, args.n_neighbors, args.outdir, rng,
-                                       perf=perf)
+                                       perf=perf, use_rep=use_rep)
         verdict = compute_verdict(master, high=args.verdict_high, risk=args.verdict_risk,
                                   min_median=args.verdict_min_median,
                                   max_risk_frac=args.verdict_max_risk_frac)

@@ -31,7 +31,7 @@ matchacell_annotation:
 
 ## The reference
 
-- Raw counts, in `.X`, or in `.raw`, which is used when present.
+- Raw counts, taken from `layers["counts"]` if present, else from `.raw`, else from `.X`.
 - A label column, `label_col`. Missing labels, including the literal string
   `nan` that some atlases store, become `unlabeled_category`.
 - The same species and gene symbols as your data. Only shared genes are used,

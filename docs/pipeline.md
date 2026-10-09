@@ -146,8 +146,8 @@ cluster_resources:
 
 ```yaml
 output_dir: "/path/to/output"     # results/ is created underneath
-dtype: "h5ad"                     # "h5ad", or "rds" for Seurat/SingleCellExperiment input
-type: "singlecell"
+dtype: "singlecell"               # "singlecell" or "spatial"
+type: "raw"                       # "raw" counts, or "normalized" (skip preprocessing)
 
 samples:
   pbmc3k: "data/pbmc3k.h5ad"        # sample_id: path-to-input
@@ -156,6 +156,7 @@ matchacell_cluster_stability:
   backend: "auto"                   # auto | gpu | cpu
   n_iter: 1000                      # bootstrap iterations per resolution
   extra: ""                         # extra flags forwarded to the script
+  use_rep: "auto"                   # embedding for clustering (auto | X_pca | X_pca_harmony | ...)
 
 matchacell_annotation:
   annot_file: "signatures.xlsx"     # marker-gene workbook (ScoreGenes, AddModuleScore, CIA)
@@ -171,8 +172,16 @@ matchacell_annotation:
 
 - **`samples`** maps a sample ID (used in output paths and report titles) to the
   path of its input. Add more `key: path` entries to fan out.
-- **`dtype`** tells Step 0 whether inputs are `.h5ad` (copied as they are) or
-  `.rds` (converted with `workflow/scripts/rds2h5.R`).
+- **`dtype`** is the data type, `singlecell` or `spatial`. The input format is
+  detected from the extension: `.h5ad` is copied as it is, `.rds`
+  (Seurat/SingleCellExperiment) is converted with `workflow/scripts/rds2h5.R`.
+- **`type`** is the state of the input matrix. `raw` (counts in `.X`) runs the
+  full Step 1: QC, normalization, HVG and PCA. `normalized` (log-normalized
+  `.X`, raw counts in `layers["counts"]`) skips all of that and clusters
+  directly on the input's embedding, so every gene is kept for annotation.
+- **`use_rep`** is the `.obsm` embedding used for neighbors, Leiden and the
+  bootstrap. `auto` takes `X_pca_harmony` (or else `X_pca`) from a normalized
+  input and computes a fresh PCA from raw input.
 - **`backend`** chooses the Step 1 compute path. `auto` uses the GPU when
   `rapids-singlecell` imports successfully, otherwise CPU.
 - **`n_iter`** is the bootstrap depth. More iterations smooth the Jaccard

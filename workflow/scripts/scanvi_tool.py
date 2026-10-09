@@ -51,10 +51,19 @@ def main(raw_data_file, verdict_file, reference_file, output_dir, label_col, unl
     print(f"[scANVI] Loading reference atlas: {reference_file}")
     adata_ref = sc.read_h5ad(reference_file)
 
-    # Reference atlases commonly keep raw counts in .raw (with normalized
-    # data in .X); recover them for scVI's raw-count model, same as query.
-    if adata_ref.raw is not None:
+    # Reference atlases commonly keep raw counts in layers["counts"] or .raw
+    # (with normalized data in .X); recover them for scVI's raw-count model,
+    # same as query. layers["counts"] wins: .raw may hold log-normalized data.
+    if "counts" in adata_ref.layers:
+        print("[scANVI] Using reference raw counts from layers['counts'].")
+        adata_ref.X = adata_ref.layers["counts"]
+        adata_ref.layers.clear()
+    elif adata_ref.raw is not None:
+        print("[scANVI] Using reference raw counts from .raw.")
         adata_ref = adata_ref.raw.to_adata()
+    else:
+        print("[scANVI] WARNING: reference has no layers['counts'] or .raw; "
+              "using .X, which must hold raw counts.")
 
     # Atlases often leave unannotated cells either as a real NaN or -- as
     # Tabula Muris Senis does -- as the literal string "nan" written into

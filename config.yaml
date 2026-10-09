@@ -7,14 +7,17 @@
 # slash is optional (it is normalized in the Snakefile).
 output_dir: "/Users/chiaraparrillo/Desktop/Progetti/MatchACell/output"
 
-# Format of the files listed under `samples` below.
-#   "h5ad" -> native, staged into results/{sample}/h5/ unchanged.
-#   "rds"  -> a Seurat/SingleCellExperiment .rds, converted to .h5ad via
-#             workflow/scripts/rds2h5.R before staging.
-dtype: "h5ad"
+# Data type: "singlecell" or "spatial" (e.g. Xenium).
+# Input format is detected from the extension: .h5ad is staged unchanged, a
+# Seurat/SingleCellExperiment .rds is converted via workflow/scripts/rds2h5.R.
+dtype: "singlecell"
 
-# Data type
-type: "singlecell"
+# State of the input matrix:
+#   "raw"        -> raw counts in .X: Step 1 runs QC, normalization, HVG and PCA.
+#   "normalized" -> log-normalized .X (raw counts in layers["counts"]): QC and
+#                   preprocessing are skipped and clustering starts directly on
+#                   the input's own embedding (see use_rep below).
+type: "raw"
 
 # ── Samples ───────────────────────────────────────────────────────────────
 #   key   = sample ID used in output paths and report titles.
@@ -37,6 +40,11 @@ matchacell_cluster_stability:
   #   "--gpu-cell-threshold 50000 --rmm-pool-fraction 0.6"
   #   "--seed 0 --n-pcs 50 --n-neighbors 15"
   extra: ""
+
+  # Embedding (.obsm key) for neighbors, Leiden and the bootstrap.
+  # "auto" -> with type "normalized", X_pca_harmony if present, else X_pca;
+  #           with type "raw", a fresh PCA.
+  use_rep: "auto"
 
 # ── Step 2: Cell Type Annotation ──────────────────────────────────────────
 

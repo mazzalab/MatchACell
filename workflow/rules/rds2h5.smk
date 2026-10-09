@@ -7,15 +7,22 @@
 #
 # Every sample must land as results/{sample}/h5/{sample}.h5ad before Step 1
 # (matchacell_cluster_stability) runs, regardless of what format it was
-# supplied in:
-#   - config["dtype"] == "rds"  -> workflow/scripts/rds2h5.R converts the
-#     Seurat/SingleCellExperiment .rds into .h5ad (see the script's header
-#     for why it writes h5ad directly via rhdf5 instead of SeuratDisk).
+# supplied in (detected from the file extension; config["dtype"] now holds
+# the data type, singlecell/spatial, not the file format):
+#   - .rds -> workflow/scripts/rds2h5.R converts the Seurat/
+#     SingleCellExperiment .rds into .h5ad (see the script's header for why it
+#     writes h5ad directly via rhdf5 instead of SeuratDisk).
 #   - anything else (native .h5ad) -> copied into place unchanged.
 # The rest of the pipeline always reads from that h5/ location, so it never
 # has to care which format the raw sample arrived in.
 
-_DTYPE = config.get("dtype", "h5ad")
+# Legacy configs still set dtype: "rds" for .rds input; keep honouring it.
+_LEGACY_RDS = config.get("dtype", "") == "rds"
+
+
+def _is_rds(wildcards):
+    path = str(config["samples"][wildcards.sample])
+    return "rds" if (_LEGACY_RDS or path.lower().endswith(".rds")) else "h5ad"
 
 
 rule stage_h5:
@@ -26,7 +33,7 @@ rule stage_h5:
         h5ad=outputDir + "results/{sample}/h5/{sample}.h5ad",
     params:
         outdir=outputDir + "results/{sample}",
-        dtype=_DTYPE,
+        fmt=_is_rds,
     resources:
         mem_mb=cluster_resource("stage_h5", "mem_mb", 16000),
         runtime=cluster_resource("stage_h5", "runtime", 120),
@@ -39,7 +46,7 @@ rule stage_h5:
         "MatchACell · stage-h5 · sample {wildcards.sample}"
     shell:
         r"""
-        if [ "{params.dtype}" = "rds" ]; then
+        if [ "{params.fmt}" = "rds" ]; then
             Rscript workflow/scripts/rds2h5.R \
                 --input {input.raw} \
                 --output {params.outdir}

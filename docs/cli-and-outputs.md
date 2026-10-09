@@ -38,6 +38,8 @@ python workflow/scripts/matchacell_cluster_stability.py \
 | `--n-pcs` | `50` | Principal components for PCA/neighbours. |
 | `--n-neighbors` | `15` | kNN graph neighbours. |
 | `--use-hvg` | `auto` | `auto` \| `yes` \| `no` (auto = HVG when > 2,000 genes). |
+| `--normalized` | off | Input `.X` is already log-normalized (raw counts in `layers["counts"]`): skip QC, normalization and HVG, cluster directly. Set by `type: "normalized"`. |
+| `--use-rep` | `auto` | `.obsm` embedding for neighbors, Leiden and the bootstrap. `auto` = `X_pca_harmony` or `X_pca` from a `--normalized` input, otherwise a fresh `X_pca`. |
 
 ### Embeddings
 | Flag | Default | Description |
