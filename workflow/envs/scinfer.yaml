@@ -1,0 +1,31 @@
+# Per-rule conda environment used by the Snakemake `conda:` directive.
+# Same R/Bioconductor base as addmodulescore.yaml (Seurat, rhdf5, for
+# rds2h5.R) plus remotes, needed to install ScInfeR itself from GitHub --
+# it is not on conda-forge/bioconductor.
+#
+# IMPORTANT: `conda env create` only resolves the dependencies below; it
+# cannot install a GitHub-only R package. After Snakemake creates this env
+# the first time, install ScInfeR into it once, e.g.:
+#   conda run -n <this-env> Rscript -e 'remotes::install_github("swainasish/ScInfeR")'
+# If that install fails on git credentials, run
+# `gitcreds::gitcreds_delete()` first, then retry (see ScInfeR.R's header).
+name: matchacell-rule-scinfer
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - compilers  # conda-forge's matched C/C++/Fortran toolchain -- ScInfeR and
+               # several of its deps (tidyr, presto, ...) ship source-only
+               # packages requiring compilation on install
+  - r-base=4.3
+  - r-seurat>=5.0
+  - r-optparse
+  - r-openxlsx
+  - r-ggplot2
+  - r-dplyr
+  - r-remotes
+  - bioconductor-singlecellexperiment
+  - bioconductor-zellkonverter
+  - bioconductor-rhdf5
+  - bioconductor-rhdf5filters
+  - bioconductor-hdf5array

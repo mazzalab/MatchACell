@@ -40,6 +40,7 @@ include: "workflow/rules/cytetype.smk"
 include: "workflow/rules/celltypeai.smk"
 include: "workflow/rules/addmodulescore.smk"
 include: "workflow/rules/scanvi.smk"
+include: "workflow/rules/scinfer.smk"
 include: "workflow/rules/scparadise.smk"
 
 
@@ -63,6 +64,10 @@ _CYTETYPE_TOKEN = (
 # annotation's required inputs when none is configured, instead of failing
 # the whole Step 2 run.
 _SCANVI_REFERENCE = config["matchacell_annotation"].get("scanvi", {}).get("reference_file", "")
+
+# ScInfeR needs an annotated single-cell reference (.rds); skip it out of
+# rule annotation's required inputs when none is configured, same as scanvi.
+_SCINFER_REFERENCE = config["matchacell_annotation"].get("scinfer", {}).get("reference_file", "")
 
 # CellTypeAI needs a local Ollama server (`ollama serve`) plus a supported
 # tissue value; skip it out of rule annotation's required inputs when no
@@ -133,6 +138,13 @@ rule annotation:
                 sample=SAMPLES,
             )
             if _SCANVI_REFERENCE else []
+        ),
+        scinfer=(
+            expand(
+                os.path.join(outputDir, "results","{sample}", "matchacell", "annotation", "ScInfeR", "scinfer_annotated.h5ad"),
+                sample=SAMPLES,
+            )
+            if _SCINFER_REFERENCE else []
         ),
         scparadise=(
             expand(

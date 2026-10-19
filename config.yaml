@@ -86,6 +86,23 @@ matchacell_annotation:
     batch_size: 2048
     n_threads: 10
 
+  # --> ScInfeR (github.com/swainasish/ScInfeR -- single-cell reference
+  # marker-based prediction)
+  scinfer:
+    # Path to an annotated single-cell reference Seurat object (.rds) with
+    # a cell-type column and a UMAP reduction. Leave empty to skip the
+    # scinfer rule entirely (same convention as scanvi's reference_file).
+    reference_file: "data/reference_pbmc.h5ad"
+    # Column in the reference metadata holding cell type labels.
+    ref_label_col: "louvain"
+    # Tissue type passed to ScInfeR::fetch_markerset() to add curated
+    # signature markers on top of the reference-derived ones. Leave empty
+    # to use only reference-derived markers.
+    tissue: ""
+    num_marker_per_ct: 10
+    own_weightage: 0.5
+    n_neighbor: 10
+
   # --> scParadise (pretrained or custom scAdam v2 model)
   scparadise:
     # Download a tissue/species-appropriate model first; see docs/annotators/scparadise.md.

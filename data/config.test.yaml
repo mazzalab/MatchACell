@@ -1,0 +1,82 @@
+# ════════════════════════════════════════════════════════════════════════
+#  MatchACell — test config (pbmc3k sample data)
+# ════════════════════════════════════════════════════════════════════════
+
+output_dir: "output_test"
+
+dtype: "h5ad"
+type: "singlecell"
+
+samples:
+  pbmc3k: "data/pbmc3k.h5ad"
+
+matchacell_cluster_stability:
+  backend: "auto"
+  n_iter: 1000
+  extra: ""
+
+matchacell_annotation:
+
+  # No signature file for test run -- score_genes/cia/addmodulescore rules
+  # need one; leave skipped if empty not supported by those rules.
+  annot_file: ""
+
+  score_genes:
+    threshold: 0.1
+
+  cia:
+    ncpus: 5
+    threshold: 70
+
+  addmodulescore:
+    threshold: 0.1
+
+  celltypist:
+    models: ['Immune_All_Low.pkl']
+
+  scanvi:
+    reference_file: ""
+    label_col: "free_annotation"
+    unlabeled_category: "Unknown"
+    threshold: 0.7
+    max_epochs_ref: 20
+    max_epochs_scanvi: 20
+    max_epochs_query: 10
+    batch_size: 2048
+    n_threads: 10
+
+  scinfer:
+    reference_file: "data/reference_pbmc.h5ad"
+    ref_label_col: "louvain"
+    tissue: ""
+    num_marker_per_ct: 10
+    own_weightage: 0.5
+    n_neighbor: 10
+
+  scparadise:
+    model_dir: ""
+    layer: "lognorm"
+    label_level: 0
+    threshold: 0.0
+    detect_unknown: false
+    unknown_method: "voting"
+    unknown_threshold: 2.0
+    batch_size: 256
+    device: "auto"
+    n_threads: 8
+    seed: 0
+
+  cytetype:
+    api_token: ""
+    study_context: "Human PBMC scRNA-seq test data (10x Genomics)."
+    title: "MatchACell test run"
+    run_label: "test"
+    n_top_genes: 100
+
+  celltypeai:
+    species: "Human"
+    tissue: ""
+    model: "phi3:mini"
+    num_genes: 200
+    n_iterations: 1
+    verbose: false
