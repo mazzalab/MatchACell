@@ -150,6 +150,13 @@ matchacell_annotation:
     # accuracy at the cost of runtime.
     n_iterations: 1
     verbose: false
+    # Ollama model store. The rule starts its own `ollama serve` on the
+    # compute node and pulls `model` here if missing. Empty -> ~/.ollama/models.
+    ollama_models: "/data/data_storage/research/Multiomics/ollama_models"
+    # Thinking step of reasoning models (e.g. qwen3): false skips it and is
+    # much faster (celltypeai discards the reasoning anyway). Ignored by
+    # non-reasoning models (phi3, phi4).
+    think: false
 
 # ── PBS cluster resources (./run.py --cluster) ────────────────────────────
 # Each rule requests its own memory (mem_mb) and walltime (runtime, minutes);

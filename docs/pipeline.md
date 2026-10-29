@@ -139,8 +139,8 @@ cluster_resources:
   it to other users.
 - **CellTypist** downloads its models on the first run; compute nodes need
   internet access, or download the models beforehand.
-- **CellTypeAI** needs its Ollama server reachable from the compute node that
-  runs the job.
+- **CellTypeAI** starts its own Ollama server on the compute node. If the
+  model isn't in `ollama_models` yet, the node needs internet access to pull it.
 
 ## Configuration: `config.yaml`
 

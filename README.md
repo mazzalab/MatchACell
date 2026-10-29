@@ -108,8 +108,8 @@ step takes longer. See [`docs/installation.md`](docs/installation.md).
 >   annotators read. Set `matchacell_cluster_stability.extra: "--use-hvg no"` so
 >   pretrained models and signatures keep their genes
 >   ([why](docs/annotators/README.md#keep-every-gene-for-annotation)).
-> - CellTypeAI is on by default (`celltypeai.tissue: "Immune system"`) and needs
->   a running Ollama server. Set `tissue: ""` if you don't have one.
+> - CellTypeAI is on by default (`celltypeai.tissue: "Immune system"`). The rule
+>   starts its own Ollama server; set `tissue: ""` to skip it.
 
 ## Outputs
 

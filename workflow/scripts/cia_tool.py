@@ -173,7 +173,7 @@ def main(raw_data_file, annot_file, verdict_file, thr, output_dir, ncpus):
     # =====================
     # Save AnnData with scores
     # =====================
-    output_h5ad = output_dir / "CIA_annotated.h5ad"
+    output_h5ad = output_dir / "cia_annotated.h5ad"
     adata.write(output_h5ad)
 
 if __name__ == "__main__":

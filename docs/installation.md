@@ -75,7 +75,7 @@ rules need.
 | scANVI | an annotated reference `.h5ad` |
 | scParadise | a downloaded scAdam model ([setup](annotators/scparadise.md#model-and-environment)) |
 | CyteType | a CyteType API token and internet access |
-| CellTypeAI | a running Ollama server with the model pulled ([setup](annotators/celltypeai.md#setting-up-ollama)) |
+| CellTypeAI | the model in `ollama_models`, or internet access to pull it ([details](annotators/celltypeai.md#ollama-server)) |
 
 ### mamba 2 and Snakemake 7
 

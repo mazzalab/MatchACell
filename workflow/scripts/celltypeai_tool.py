@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 import argparse
+import os
+import sys
 from pathlib import Path
 
 # --- Configurazione Backend Matplotlib (No Pop-up) ---
@@ -7,6 +9,7 @@ import matplotlib
 matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import celltypeai as cta
+import pandas as pd
 
 import scanpy as sc
 
@@ -14,7 +17,45 @@ import scanpy as sc
 from functions_annot import extract_best_res, multi_umap
 
 
-def main(raw_data_file, verdict_file, output_dir, species, tissue, model, num_genes, n_iterations, verbose):
+def patch_ollama_requests(num_thread=None, think=None):
+    """Adjust CellTypeAI's requests to Ollama.
+
+    celltypeai hardcodes http://localhost:11434 and a fixed request body
+    (prompt_submit.py), so patch requests.post to:
+    - send them to the server in $OLLAMA_HOST, so the rule can run its own
+      `ollama serve` on a free port;
+    - set options.num_thread, otherwise llama-server uses every core of the
+      node, not the threads PBS allotted;
+    - set "think", so reasoning models (e.g. qwen3) can skip the thinking
+      tokens that celltypeai discards anyway.
+    """
+    host = os.environ.get("OLLAMA_HOST", "").strip()
+    if host:
+        if not host.startswith(("http://", "https://")):
+            host = "http://" + host
+        host = host.rstrip("/")
+
+    import celltypeai.prompt_submit as ps
+    _post = ps.requests.post
+
+    def _patched_post(url, *args, **kwargs):
+        if host:
+            url = url.replace("http://localhost:11434", host)
+        payload = kwargs.get("json")
+        if isinstance(payload, dict):
+            if num_thread:
+                payload.setdefault("options", {})["num_thread"] = num_thread
+            if think is not None:
+                payload["think"] = think
+        return _post(url, *args, **kwargs)
+
+    ps.requests.post = _patched_post
+    print(f"[CellTypeAI] Ollama server: {host or 'http://localhost:11434'}, "
+          f"num_thread: {num_thread or 'auto'}, think: {think}")
+
+
+def main(raw_data_file, verdict_file, output_dir, species, tissue, model, num_genes, n_iterations, verbose,
+         threads=None, think=None):
 
     # =====================
     # Extract best res
@@ -55,7 +96,23 @@ def main(raw_data_file, verdict_file, output_dir, species, tissue, model, num_ge
     # sc.tl.rank_genes_groups(groupby="leiden", method="wilcoxon") on
     # adata.X, so this needs to already be log-normalized (as elsewhere in
     # the workflow) rather than raw counts.
-    adata.obs["leiden"] = adata.obs[leiden_col].astype(str)
+    #
+    # celltypeai also names each rank_genes_groups group by its position
+    # (str(0), str(1), ...) instead of its real label, so any label that is
+    # not 0..n-1 (e.g. sub-clusters "15_0") gets the genes of another group
+    # or ends up NaN. Feed it positional codes in natural order instead; the
+    # per-cell cell_type_ai labels stay valid for the real leiden_col.
+    labels = adata.obs[leiden_col].astype(str)
+    ordered = sorted(
+        labels.unique(),
+        key=lambda x: [(0, int(p)) if p.isdigit() else (1, p) for p in x.split("_")]
+    )
+    codes = {label: str(i) for i, label in enumerate(ordered)}
+    adata.obs["leiden"] = pd.Categorical(
+        labels.map(codes), categories=[str(i) for i in range(len(ordered))]
+    )
+
+    patch_ollama_requests(num_thread=threads, think=think)
 
     adata = cta.cell_annotator(
         species,
@@ -73,6 +130,13 @@ def main(raw_data_file, verdict_file, output_dir, species, tissue, model, num_ge
     print("CellTypeAI Generating unified cluster annotation and counts file...")
 
     label_col = "cell_type_ai"
+
+    # celltypeai swallows connection errors and leaves every label NaN;
+    # fail here so Snakemake doesn't mark an empty annotation as done.
+    if label_col not in adata.obs or adata.obs[label_col].isna().all():
+        sys.exit("[CellTypeAI] ERROR: no cluster was annotated (all NaN). "
+                 "Check that the Ollama server was reachable and the model "
+                 "is available.")
 
     df_report = (
         adata.obs.groupby(leiden_col)[label_col]
@@ -147,6 +211,16 @@ if __name__ == "__main__":
                              "prompts to the working directory)"
     )
 
+    parser.add_argument("--threads", type=int, default=None,
+                        help="CPU threads for the Ollama model (options.num_thread). "
+                             "Default: Ollama decides (all cores of the node)."
+    )
+
+    parser.add_argument("--think", choices=["true", "false"], default=None,
+                        help="Enable/disable the thinking step of reasoning models "
+                             "(e.g. qwen3). Default: the model's own default."
+    )
+
     args = parser.parse_args()
 
     main(
@@ -159,4 +233,6 @@ if __name__ == "__main__":
         num_genes=args.num_genes,
         n_iterations=args.n_iterations,
         verbose=args.verbose,
+        threads=args.threads,
+        think=None if args.think is None else args.think == "true",
     )

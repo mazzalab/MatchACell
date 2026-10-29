@@ -1,21 +1,31 @@
 # Per-rule conda environment used by the Snakemake `conda:` directive.
 # Mirrors the top-level environment.yml so `--use-conda` runs are reproducible.
 # Snakemake itself is provided by the launching environment, so it is omitted here.
+#
+# Every package is pinned to an exact version: the versions below are a set
+# verified to import together (scvi-tools 1.3.3 on Python 3.10). Unpinned,
+# pip's legacy resolver (PIP_USE_DEPRECATED=legacy-resolver, set by run.py)
+# skips cross-package conflict checks and silently installs whatever is
+# newest -- e.g. numpyro 0.20.0, which needs jax>=0.7 while jax 0.7 has no
+# Python 3.10 build, so `import scvi` failed with
+# "cannot import name 'jit_p' from 'jax.extend.core.primitives'".
+# Pin builds by version only (no build strings) so the env stays solvable
+# on both linux-64 and osx-arm64.
 name: matchacell-rule
 channels:
   - conda-forge
   - bioconda
 dependencies:
-  - python=3.10
-  - scanpy>=1.9
-  - anndata>=0.9
-  - numpy
-  - pandas
-  - scipy
-  - matplotlib-base
-  - seaborn
-  - plotly
-  - openpyxl
+  - python=3.10.22
+  - scanpy=1.11.5
+  - anndata=0.11.4
+  - numpy=2.2.6
+  - pandas=2.3.3
+  - scipy=1.15.2
+  - matplotlib-base=3.10.9
+  - seaborn=0.13.2
+  - plotly=7.0.0
+  - openpyxl=3.1.5
   # scvi-tools pulls jax/jaxlib/pytorch as pip dependencies if left to pip
   # itself -- on Apple Silicon that resolved x86_64 wheels (jaxlib has no
   # arm64 build on PyPI for some versions) even inside an otherwise-native
@@ -23,9 +33,19 @@ dependencies:
   # instructions... do not support" on import. Pin them here as conda-forge
   # packages instead (real arm64 builds), so pip finds them already
   # satisfied and never reaches for its own wheels.
-  - jax
-  - jaxlib
-  - pytorch
-  - pip
+  # scvi-tools 1.3.3 requires jax<0.7.
+  - jax=0.6.2
+  - jaxlib=0.6.2
+  - pytorch=2.7.1
+  - pip=26.2.1
   - pip:
-      - scvi-tools
+      - scvi-tools==1.3.3
+      # numpyro>=0.20 requires jax>=0.7 (see header).
+      - numpyro==0.19.0
+      # Rest of scvi-tools' jax/torch stack, pinned so legacy pip can't
+      # drift them onto releases that need a newer jax/torch.
+      - flax==0.10.7
+      - optax==0.2.8
+      - orbax-checkpoint==0.11.39
+      - pyro-ppl==1.9.2
+      - lightning==2.6.6

@@ -385,6 +385,22 @@ def run_snakemake(args: argparse.Namespace) -> int:
     resources = parse_resources(args.resources)
     singularity_args = build_singularity_args(args)
 
+    # Classic conda's solver can blow up (100+ GB RSS, CPU-pinned, no forward
+    # progress) resolving a conda-forge+bioconda+defaults stack (e.g.
+    # celltypist.yaml) without strict channel priority -- conda itself warns
+    # about this every run. Scoped to this process only (env var, not `conda
+    # config --set`, which would change the priority for every conda
+    # invocation on this machine) so it only affects `conda-env create` calls
+    # spawned by this run. Doesn't override an operator's explicit choice.
+    # Same fix as workflow_pipelines/Xenium/run.py. No --conda-frontend mamba
+    # fallback here on purpose: --conda-frontend's own help text already
+    # notes Snakemake 7 fails to create envs with mamba 2.x, the only mamba
+    # on this system (2.9.0) -- see run_snakemake's --conda-frontend default.
+    if not args.no_conda:
+        os.environ.setdefault("CONDA_CHANNEL_PRIORITY", "strict")
+        os.environ.setdefault("PIP_USE_DEPRECATED", "legacy-resolver")
+        os.environ.setdefault("PYTHONNOUSERSITE", "1")
+
     # Held for the whole run; replaces Snakemake's directory-wide lock (lock=False).
     _project_lock = acquire_project_lock(configfile)  # noqa: F841
 

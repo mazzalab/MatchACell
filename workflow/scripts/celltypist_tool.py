@@ -52,7 +52,12 @@ def main(raw_data_file, verdict_file, models_list, output_dir):
     # Scarica/Aggiorna la lista dei modelli
     models.download_models()
 
-    unique_clusters = sorted(adata.obs[leiden_col].unique(), key=lambda x: int(x) if str(x).isdigit() else x)
+    # natural sort: "2" < "10" < "15_0"; mixing int and str keys raised
+    # TypeError on subcluster labels like "15_0"
+    unique_clusters = sorted(
+        adata.obs[leiden_col].unique(),
+        key=lambda x: [(0, int(p)) if p.isdigit() else (1, p) for p in str(x).split("_")]
+    )
     df_final_report = pd.DataFrame({'cluster': unique_clusters})
     df_final_report = df_final_report.set_index('cluster')
 
