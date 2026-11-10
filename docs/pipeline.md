@@ -109,6 +109,7 @@ qsub -q <queue> -l select=1:ncpus=<threads>:mem=<mem_mb>mb -l walltime=<runtime>
 | Rule | Memory | Walltime |
 | --- | --- | --- |
 | `stage_h5` | 16 GB | 2 h |
+| `doublets` | 32 GB | 4 h |
 | `matchacell_cluster_stability` | 32 GB | 12 h |
 | `matchacell_cluster_stability_rds` | 32 GB | 2 h |
 | `score_genes` | 16 GB | 2 h |
@@ -191,6 +192,11 @@ matchacell_annotation:
   `rapids-singlecell` imports successfully, otherwise CPU.
 - **`n_iter`** is the bootstrap depth. More iterations smooth the Jaccard
   estimates at the cost of runtime.
+- **`doublets`** turns on doublet detection with scDblFinder before QC
+  (`method: "scDblFinder"`; empty is off). `action: "remove"` drops the
+  doublets, `"flag"` only records `doublet_score` and `doublet_class`.
+  `samples_col` names the 10x capture of each cell when one file pools several,
+  `dbr` overrides the expected doublet rate, `layer` points at the raw counts.
 - **`extra`** is forwarded verbatim to `matchacell_cluster_stability.py`, so any
   flag in [`cli-and-outputs.md`](cli-and-outputs.md) can be set there, e.g.
   `"--resolutions 0.2 0.5 1.0 2.0 --skip-tsne"`.
@@ -207,6 +213,7 @@ matchacell_annotation:
 | Step | Rule | Module | Script | Environment |
 | --- | --- | --- | --- | --- |
 | 0 | `stage_h5` | `rds2h5.smk` | `rds2h5.R` for `.rds` input, otherwise a copy | `addmodulescore.yaml` |
+| 1 | `doublets` (optional) | `cluster_stability.smk` | `scdblfinder_tool.R` | `scdblfinder.yaml` |
 | 1 | `matchacell_cluster_stability` | `cluster_stability.smk` | `matchacell_cluster_stability.py` | `matchacell.yaml` |
 | 1 | `matchacell_cluster_stability_rds` | `cluster_stability.smk` | `h52rds.R` | `addmodulescore.yaml` |
 | 2 | `score_genes` | `score_genes.smk` | `score_genes.py` | `matchacell.yaml` |
@@ -224,7 +231,9 @@ matchacell_annotation:
 Step 0 stages each sample as `results/<sample>/h5/<sample>.h5ad`, so later steps
 never need to know the input format.
 
-Step 1's rule reads that staged file and writes `clustered_multi_resolution.h5ad`
+With `doublets.method: "scDblFinder"`, the `doublets` rule first writes
+`matchacell/doublets/scDblFinder.csv` from the staged file. Step 1's rule reads
+that staged file (and the doublet calls) and writes `clustered_multi_resolution.h5ad`
 and `MatchA_Verdict.txt` (its tracked outputs) plus diagnostics under
 `matchacell/`. A second rule converts the clustered object to a Seurat `.rds`
 for R-side use, including AddModuleScore.

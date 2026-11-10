@@ -51,3 +51,39 @@ def test_data_driven_qc_keeps_majority_and_drops_controls(tiny_adata, tmp_path):
     # The control feature must be dropped from the expression matrix.
     assert not filtered.var_names.str.lower().str.contains("negcontrol").any()
     assert set(qc_obs["status"].unique()) <= {"kept", "removed"}
+
+
+def _doublet_csv(adata, tmp_path, doublets):
+    import pandas as pd
+    calls = pd.DataFrame({"cell": adata.obs_names,
+                          "doublet_score": [0.9 if c in doublets else 0.05 for c in adata.obs_names],
+                          "doublet_class": ["doublet" if c in doublets else "singlet"
+                                            for c in adata.obs_names]})
+    path = tmp_path / "scDblFinder.csv"
+    calls.to_csv(path, index=False)
+    return path
+
+
+def test_doublets_are_a_qc_criterion(tiny_adata, tmp_path):
+    path = _doublet_csv(tiny_adata, tmp_path, {"cell3", "cell200"})
+    assert mc.read_doublets(tiny_adata, path) == 2
+    filtered, summary, qc_obs = mc.data_driven_qc(tiny_adata, outdir=tmp_path)
+    assert summary["removed_by_doublet"] == 2
+    assert "cell3" not in filtered.obs_names and "cell200" not in filtered.obs_names
+    assert (qc_obs.loc[["cell3", "cell200"], "status"] == "removed").all()
+    assert {"doublet_score", "doublet_class"} <= set(filtered.obs.columns)
+
+
+def test_flagged_doublets_stay(tiny_adata, tmp_path):
+    path = _doublet_csv(tiny_adata, tmp_path, {"cell3"})
+    mc.read_doublets(tiny_adata, path, action="flag")
+    filtered, summary, qc_obs = mc.data_driven_qc(tiny_adata, outdir=tmp_path)
+    assert summary["removed_by_doublet"] == 0
+    assert qc_obs.loc["cell3", "doublet_class"] == "doublet"
+    assert not qc_obs["doublet"].any()
+
+
+def test_doublet_calls_must_cover_every_cell(tiny_adata, tmp_path):
+    path = _doublet_csv(tiny_adata[:10].copy(), tmp_path, set())
+    with pytest.raises(ValueError, match="no doublet call"):
+        mc.read_doublets(tiny_adata, path)

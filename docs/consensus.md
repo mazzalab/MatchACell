@@ -81,24 +81,30 @@ maps, and each call is:
 annotation that gives a whole cluster one label can do better at this
 resolution.
 
-On pbmc3k, scored against the labels of the scanpy/Seurat tutorial, at the
-Verdict resolution (leiden_2.0, 13 clusters):
+On pbmc3k, scored against the labels of the scanpy/Seurat tutorial (2,327
+cells after QC and scDblFinder, Verdict leiden_1.5, 11 clusters):
 
 | | correct | coarser | wrong |
 | --- | --- | --- | --- |
-| ScoreGenes | 89% | 0% | 11% |
-| AddModuleScore | 89% | 0% | 11% |
+| ScoreGenes / AddModuleScore | 89% | 0% | 11% |
 | CIA | 87% | 0% | 13% |
-| CellTypist | 83% | 2% | 14% |
-| **Consensus, `vote_by: family`** | 83% | 8% | 8% |
-| Consensus, `vote_by: annotator` | 89% | 0% | 11% |
+| CellTypist | 89% | 2% | 9% |
+| **Consensus** (either vote mode) | 89% | 0% | 11% |
 | Cluster ceiling | 93% | 0% | 7% |
 
-Pooling by family trades 6% of the exact calls for 3% fewer wrong ones: when
-the families disagree, it falls back to the term they share. The tutorial labels themselves
-come from marker genes, which favours the marker methods. The errors of all
-methods sit in the CD8 T cells: one CD8 cluster is called NK by the signature
-methods and by CellTypist's fine model (these cells express *NKG7*).
+All 11 clusters are `agreed`. Nearly every error is one cluster of 124 CD8 T
+cells that ScoreGenes, AddModuleScore and CellTypist's fine model call NK
+(these cells express *NKG7*): the consensus can't be right when the annotators
+are wrong the same way. The 3 cells left of the tutorial's `Megakaryocytes`
+are too few to form a cluster, so only CIA, which labels single cells, gets
+them.
+
+At the finer leiden_2.0 (before the Verdict counted cells in unstable
+clusters), the two vote modes differed: per family 83% correct, 8% coarser
+and 8% wrong; per annotator 89%, 0% and 11%. Pooling by family traded exact
+calls for fewer wrong ones by falling back to the term the families share.
+The tutorial labels themselves come from marker genes, which favours the
+marker methods.
 
 ## Label maps
 

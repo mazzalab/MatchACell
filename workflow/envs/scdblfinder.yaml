@@ -1,0 +1,19 @@
+# Per-rule conda environment of the optional doublet detection (rule doublets):
+# scDblFinder reads the staged .h5ad with rhdf5, so no Python is needed.
+# xgboost is pinned to 1.7: with xgboost >= 2 scDblFinder's classifier
+# training fails ("'early_stopping_rounds' requires passing 'eval_set'") and
+# falls back to a suboptimal model, which inflates the doublet calls.
+# Snakemake itself is provided by the launching environment, so it is omitted here.
+name: matchacell-rule-scdblfinder
+channels:
+  - conda-forge
+  - bioconda
+dependencies:
+  - r-base=4.3
+  - r-optparse
+  - r-matrix
+  - r-xgboost=1.7.6=cpu*
+  - bioconductor-scdblfinder=1.16
+  - bioconductor-singlecellexperiment
+  - bioconductor-rhdf5
+  - bioconductor-biocparallel

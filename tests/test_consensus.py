@@ -266,3 +266,33 @@ def test_consensus_target_schedules_enabled_annotators(tmp_path):
     cmd = result.stdout[result.stdout.index("consensus_tool.py"):]
     assert "ScoreGenes=" in cmd and "CellTypist=" in cmd
     assert "CIA=" not in cmd and "CellTypeAI=" not in cmd
+
+
+@pytest.mark.skipif(shutil.which("snakemake") is None, reason="Snakemake is not installed")
+@pytest.mark.parametrize("method", ["scDblFinder", ""])
+def test_doublet_rule_runs_only_when_enabled(tmp_path, method):
+    import yaml
+
+    config = yaml.safe_load((ROOT / "config.yaml").read_text())
+    config["output_dir"] = str(tmp_path / "out")
+    sample = tmp_path / "input.h5ad"
+    sample.touch()
+    config["samples"] = {"s1": str(sample)}
+    config["matchacell_cluster_stability"]["doublets"].update(
+        {"method": method, "samples_col": "lane", "action": "flag"})
+    path = tmp_path / "config.yaml"
+    path.write_text(yaml.safe_dump(config))
+    env = {**os.environ, "XDG_CACHE_HOME": str(tmp_path / "cache")}
+    result = subprocess.run(
+        ["snakemake", "--snakefile", str(ROOT / "Snakefile"), "--configfile", str(path),
+         "--cores", "1", "--dry-run", "--printshellcmds", "cluster_stability"],
+        cwd=ROOT, env=env, capture_output=True, text=True, timeout=120)
+    assert result.returncode == 0, result.stdout + result.stderr
+    scheduled = re.search(r"^doublets\s+1", result.stdout, re.MULTILINE) is not None
+    assert scheduled == bool(method)
+    step1 = result.stdout[result.stdout.index("matchacell_cluster_stability.py"):]
+    if method:
+        assert "scdblfinder_tool.R" in result.stdout and "--samples-col lane" in result.stdout
+        assert "--doublets" in step1 and "--doublet-action flag" in step1
+    else:
+        assert "--doublets" not in step1

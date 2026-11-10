@@ -42,14 +42,16 @@ counts, Step 1 runs:
 
 1. **Data-driven QC**: MAD-based outlier detection (no hard-coded thresholds),
    adaptive to the assay (mitochondrial genes and/or Xenium negative-control
-   probes).
+   probes), and optionally doublet removal with
+   [scDblFinder](https://bioconductor.org/packages/scDblFinder).
 2. **Preprocessing**: normalize → log1p → optional HVG → PCA → neighbours
    (CPU `scanpy`, or GPU `rapids-singlecell`).
 3. **Multi-resolution Leiden** clustering across a sweep of resolutions.
 4. **Embeddings** (PCA / t-SNE / UMAP) coloured by every resolution.
 5. **Bootstrap Jaccard stability** per cluster, per resolution.
-6. **The MatchA Verdict**: the finest *stable* resolution for annotation, with
-   the clusters to watch.
+6. **The MatchA Verdict**: the finest resolution whose clusters reproduce
+   (median stability, and nearly every cell in a stable cluster), with the
+   clusters to watch.
 7. A **self-contained interactive HTML report** with a resolution switcher, plus
    QC plots, a clustree, transition heatmaps, and performance metrics.
 
@@ -214,7 +216,7 @@ pytest                 # include the CPU end-to-end smoke test
   ([docs/consensus.md](docs/consensus.md))
 - [x] Step 3: family-pooled votes, validation against known labels, and one
   HTML report for Steps 1-3
-- [ ] Doublet detection in Step 1 QC (e.g. scDblFinder or Scrublet)
+- [x] Doublet detection in Step 1 QC (scDblFinder, optional)
 - [ ] Per-cell consensus for annotators that label single cells (popV-style)
 - [ ] Reconcile/document the CPU↔GPU backend divergence for end users
 - [ ] Seed cuGraph Leiden for run-to-run reproducibility on GPU

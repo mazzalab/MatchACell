@@ -73,3 +73,24 @@ def test_render_verdict_text_contains_scent_and_recommendation():
     assert "MatchA Verdict" in text
     assert "leiden_0.3" in text
     assert mc.MATCHA_SCENT in text
+
+
+def test_verdict_counts_the_cells_in_unstable_clusters():
+    # 0.5 passes the cluster-share bar (1 of 5 risky) but 30% of the cells sit
+    # in that risky cluster: the coarser 0.2 wins. A tiny risky cluster passes.
+    rows = ([("0.2", str(c), 0.9, 200) for c in range(3)]
+            + [("0.5", str(c), 0.9, 100) for c in range(4)] + [("0.5", "4", 0.3, 180)])
+    master = pd.DataFrame(rows, columns=["Resolution", "Cluster", "Jaccard_Stability", "n_cells"])
+    v = mc.compute_verdict(master)
+    assert v["recommended"] == "0.2"
+    assert v["summary"].loc["0.5", "frac_risk_cells"] == pytest.approx(180 / 580)
+    master.loc[master["Cluster"].eq("4"), "n_cells"] = 10
+    v = mc.compute_verdict(master)
+    assert v["recommended"] == "0.5" and v["frac_risk_cells"] == pytest.approx(10 / 410)
+    assert "Cells in clusters < 0.60: 2.4%" in mc.render_verdict_text(v)
+
+
+def test_summary_uses_the_given_thresholds():
+    master = _master([("0.5", "0", 0.7), ("0.5", "1", 0.9)])
+    s = mc.resolution_summary(master, high=0.95, risk=0.75)
+    assert s.loc["0.5", "frac_high"] == 0 and s.loc["0.5", "frac_risk"] == 0.5

@@ -405,6 +405,25 @@ def flag_feature_classes(adata) -> dict:
     return {"mt": n_mt, "control": n_ctrl}
 
 
+def read_doublets(adata, path: Path, action: str = "remove"):
+    """Add the per-cell doublet calls of the `doublets` rule (scDblFinder) to
+    .obs: doublet_score, doublet_class, and doublet (True for cells to remove;
+    always False with action "flag"). Every cell must have a call."""
+    calls = pd.read_csv(path, index_col=0, dtype={"doublet_class": str})
+    missing = adata.obs_names.difference(calls.index)
+    if len(missing):
+        raise ValueError(f"{path}: no doublet call for {len(missing)} cells "
+                         f"(e.g. {list(missing[:3])}); rerun the doublets rule.")
+    calls = calls.reindex(adata.obs_names)
+    adata.obs["doublet_score"] = calls["doublet_score"].astype(float).values
+    adata.obs["doublet_class"] = pd.Categorical(calls["doublet_class"].values)
+    is_dbl = (calls["doublet_class"] == "doublet").values
+    adata.obs["doublet"] = is_dbl if action == "remove" else np.zeros(adata.n_obs, bool)
+    log.info("Doublets (scDblFinder): %d of %d cells (%.1f%%)%s.", int(is_dbl.sum()),
+             adata.n_obs, 100 * is_dbl.mean(), "" if action == "remove" else ", flagged only")
+    return int(is_dbl.sum())
+
+
 def data_driven_qc(
     adata,
     nmads: float = 5.0,
@@ -414,7 +433,8 @@ def data_driven_qc(
     mt_pct_hard: float = 20.0,
     outdir: Path | None = None,
 ):
-    """MAD-based adaptive QC. Returns (filtered_adata, summary, qc_obs)."""
+    """MAD-based adaptive QC, plus the doublet calls already in .obs["doublet"]
+    (see read_doublets). Returns (filtered_adata, summary, qc_obs)."""
     flags = flag_feature_classes(adata)
     qc_vars = [v for v in ("mt", "control") if flags[v] > 0]
     percent_top = [20] if adata.n_vars >= 20 else None
@@ -457,6 +477,8 @@ def data_driven_qc(
         & ~adata.obs["control_outlier"]
         & ~adata.obs["below_floor"]
     )
+    if "doublet" in adata.obs:
+        keep &= ~adata.obs["doublet"].astype(bool)
 
     qc_obs = adata.obs.copy()
     qc_obs["status"] = np.where(keep.values, "kept", "removed")
@@ -483,6 +505,8 @@ def data_driven_qc(
         "removed_by_control": int(qc_obs["control_outlier"].sum()),
         "removed_by_floor": int(qc_obs["below_floor"].sum()),
     }
+    if "doublet" in qc_obs:
+        summary["removed_by_doublet"] = int(qc_obs["doublet"].astype(bool).sum())
     log.info(
         "QC: kept %s / %d cells (removed %d, %.2f%%).",
         Theme.matcha(str(n1), bold=True),
@@ -573,6 +597,7 @@ def qc_diagnostics(adata, keep_mask, nmads, nmads_pct, outdir: Path):
         "mito %": "mt_outlier",
         "control %": "control_outlier",
         "below floor": "below_floor",
+        "doublet": "doublet",
     }
     counts = {k: int(obs[v].sum()) for k, v in cats.items()
               if v in obs.columns and obs[v].dtype != object}
@@ -922,39 +947,52 @@ def _stability_per_resolution(adata, X, leiden_keys, rsc, n_iter, fraction, n_ne
 # =========================================================================== #
 # MatchA Verdict
 # =========================================================================== #
-def resolution_summary(master: pd.DataFrame) -> pd.DataFrame:
+def resolution_summary(master: pd.DataFrame, high=0.85, risk=0.60) -> pd.DataFrame:
+    """Per resolution: cluster count, stability statistics, the share of
+    clusters that are highly stable (>= high) or at risk (< risk) and, when
+    `master` has an n_cells column, the share of cells in clusters at risk."""
     g = master.groupby("Resolution")["Jaccard_Stability"]
     summary = pd.DataFrame({
         "n_clusters": g.size(),
         "median": g.median(),
         "mean": g.mean(),
         "min": g.min(),
-        "frac_high": g.apply(lambda s: float((s >= 0.85).mean())),
-        "frac_risk": g.apply(lambda s: float((s < 0.60).mean())),
+        "frac_high": g.apply(lambda s: float((s >= high).mean())),
+        "frac_risk": g.apply(lambda s: float((s < risk).mean())),
     })
+    if "n_cells" in master:
+        at_risk = master["n_cells"].where(master["Jaccard_Stability"] < risk, 0)
+        summary["frac_risk_cells"] = (at_risk.groupby(master["Resolution"]).sum()
+                                      / master.groupby("Resolution")["n_cells"].sum())
     summary = summary.loc[sorted(summary.index, key=float)]
     return summary
 
 
 def compute_verdict(master: pd.DataFrame, high=0.85, risk=0.60,
-                    min_median=0.75, max_risk_frac=0.25) -> dict:
+                    min_median=0.75, max_risk_frac=0.25, max_risk_cells=0.05) -> dict:
     """
     Recommend a resolution for annotation.
 
-    Rule: among resolutions whose median stability >= `min_median` and whose
-    fraction of risky clusters (< `risk`) <= `max_risk_frac`, pick the FINEST
-    (most clusters) - finer granularity gives more cell-type/state resolution
-    for annotation, provided it stays stable. If none qualify, fall back to the
+    Rule: among resolutions whose median stability >= `min_median`, whose
+    fraction of risky clusters (< `risk`) <= `max_risk_frac` and, when
+    `master` has cluster sizes (n_cells), whose share of cells in risky
+    clusters <= `max_risk_cells`, pick the FINEST (most clusters) - finer
+    granularity gives more cell-type/state resolution for annotation, provided
+    nearly every cell sits in a reproducible cluster. Counting cells, not only
+    clusters, keeps a small unstable cluster (a rare population) from weighing
+    like an unstable split of a large one. If none qualify, fall back to the
     resolution with the highest median stability.
 
     `at_sweep_edge` is set when the finest stable resolution is also the largest
     resolution swept: the clustering may still be stable at higher resolutions,
     so the choice says more about the sweep than about the data.
     """
-    summary = resolution_summary(master)
+    summary = resolution_summary(master, high, risk)
 
-    acceptable = summary[(summary["median"] >= min_median)
-                         & (summary["frac_risk"] <= max_risk_frac)]
+    ok = (summary["median"] >= min_median) & (summary["frac_risk"] <= max_risk_frac)
+    if "frac_risk_cells" in summary:
+        ok &= summary["frac_risk_cells"] <= max_risk_cells
+    acceptable = summary[ok]
     if not acceptable.empty:
         rec = acceptable.sort_values(["n_clusters", "median"],
                                      ascending=[False, False]).index[0]
@@ -979,10 +1017,13 @@ def compute_verdict(master: pd.DataFrame, high=0.85, risk=0.60,
         "median": float(rec_row["median"]),
         "frac_high": float(rec_row["frac_high"]),
         "frac_risk": float(rec_row["frac_risk"]),
+        "frac_risk_cells": (float(rec_row["frac_risk_cells"])
+                            if "frac_risk_cells" in summary else None),
         "unstable_clusters": unstable,
         "at_sweep_edge": at_sweep_edge,
         "thresholds": {"high": high, "risk": risk,
-                       "min_median": min_median, "max_risk_frac": max_risk_frac},
+                       "min_median": min_median, "max_risk_frac": max_risk_frac,
+                       "max_risk_cells": max_risk_cells},
     }
 
 
@@ -995,6 +1036,9 @@ def render_verdict_text(v: dict) -> str:
     lines.append(f"Median Jaccard         : {v['median']:.3f}")
     lines.append(f"Clusters >= {v['thresholds']['high']:.2f}      : {100*v['frac_high']:.0f}%")
     lines.append(f"Clusters <  {v['thresholds']['risk']:.2f}      : {100*v['frac_risk']:.0f}%")
+    if v.get("frac_risk_cells") is not None:
+        lines.append(f"Cells in clusters < {v['thresholds']['risk']:.2f}: "
+                     f"{100*v['frac_risk_cells']:.1f}%")
     lines.append(f"Selection basis        : {v['basis']}")
     if v.get("at_sweep_edge"):
         lines.append("Note                   : this is the largest resolution swept; "
@@ -1361,6 +1405,12 @@ def parse_args(argv=None):
     p.add_argument("--min-genes", type=int, default=5)
     p.add_argument("--mt-pct-hard", type=float, default=20.0)
     p.add_argument("--skip-qc", action="store_true")
+    p.add_argument("--doublets", type=Path,
+                   help="Per-cell doublet calls (CSV: cell, doublet_score, doublet_class) "
+                        "from the doublets rule (scDblFinder).")
+    p.add_argument("--doublet-action", choices=["remove", "flag"], default="remove",
+                   help="remove: doublets are a QC criterion (default); flag: keep them "
+                        "and only record the calls in .obs.")
 
     # stability
     p.add_argument("--n-iter", type=int, default=100)
@@ -1376,7 +1426,10 @@ def parse_args(argv=None):
     p.add_argument("--verdict-high", type=float, default=0.85)
     p.add_argument("--verdict-risk", type=float, default=0.60)
     p.add_argument("--verdict-min-median", type=float, default=0.75)
-    p.add_argument("--verdict-max-risk-frac", type=float, default=0.25)
+    p.add_argument("--verdict-max-risk-frac", type=float, default=0.25,
+                   help="Max share of clusters below --verdict-risk.")
+    p.add_argument("--verdict-max-risk-cells", type=float, default=0.05,
+                   help="Max share of cells in clusters below --verdict-risk.")
 
     p.add_argument("--edge-weight-threshold", type=float, default=0.05)
     p.add_argument("--seed", type=int, default=0)
@@ -1406,6 +1459,13 @@ def main(argv=None):
     log.info("Loaded: %d cells x %d genes.", adata.n_obs, adata.n_vars)
 
     qc_obs = None
+    if args.doublets:
+        read_doublets(adata, args.doublets, args.doublet_action)
+    if args.normalized or args.skip_qc:
+        if args.doublets and args.doublet_action == "remove":
+            n0 = adata.n_obs
+            adata = adata[~adata.obs["doublet"].values].copy()
+            log.info("Removed %d doublets.", n0 - adata.n_obs)
     if args.normalized:
         log.info("Normalized input (--normalized): skipping QC and normalization.")
     elif not args.skip_qc:
@@ -1466,9 +1526,14 @@ def main(argv=None):
                                        perf=perf, use_rep=use_rep,
                                        n_dims=min(args.n_pcs, adata.obsm[use_rep].shape[1]),
                                        n_jobs=max(1, args.n_jobs), seed=args.seed)
+        sizes = {k.removeprefix("leiden_"): adata.obs[k].astype(str).value_counts()
+                 for k in leiden_keys}
+        master["n_cells"] = [int(sizes[str(r)].get(str(c), 0))
+                             for r, c in zip(master["Resolution"], master["Cluster"])]
         verdict = compute_verdict(master, high=args.verdict_high, risk=args.verdict_risk,
                                   min_median=args.verdict_min_median,
-                                  max_risk_frac=args.verdict_max_risk_frac)
+                                  max_risk_frac=args.verdict_max_risk_frac,
+                                  max_risk_cells=args.verdict_max_risk_cells)
         summary = verdict["summary"]
         (args.outdir / "MatchA_Verdict.txt").write_text(render_verdict_text(verdict),
                                                         encoding="utf-8")

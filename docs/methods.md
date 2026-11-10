@@ -32,6 +32,16 @@ Metrics considered:
   flagged with the stricter percentage sensitivity.
 - A small absolute floor (`--min-counts`, `--min-genes`) removes obviously empty
   barcodes.
+- **Doublets** (optional, `doublets.method: "scDblFinder"` in the config). The
+  `doublets` rule runs scDblFinder (Germain et al. 2021) on the raw counts of
+  every cell before QC. It simulates artificial doublets from pairs of cells and
+  trains a gradient-boosted classifier to tell them from the real cells; cells
+  it calls `doublet` are removed with the other QC criteria (or only flagged,
+  `action: "flag"`). In independent benchmarks it is among the most accurate
+  doublet detectors (Xi & Li 2021; Germain et al. 2021). Doublets form within
+  one capture, so for a file pooling several 10x lanes set
+  `doublets.samples_col` to the column naming them. scDblFinder is meant for
+  droplet single-cell data, not for imaging-based spatial data such as Xenium.
 
 **Feature classes.** Mitochondrial genes are matched by the `MT-`/`MT.` prefix.
 Control/probe features are matched against Xenium-style patterns
@@ -97,13 +107,26 @@ gathers its subsample on-device, avoiding thousands of host→device copies.
 
 The Verdict recommends a resolution to carry into annotation.
 
-A resolution is **acceptable** when its **median** stability ≥ `--verdict-min-median`
-(default 0.75) **and** its fraction of risky clusters (< `--verdict-risk`,
-default 0.60) ≤ `--verdict-max-risk-frac` (default 0.25). Among acceptable
-resolutions, the Verdict picks the **finest** (most clusters) — finer
-granularity gives more cell-type/state resolution, provided it stays stable. If
-none qualify, it falls back to the resolution with the **highest median
-stability**.
+A resolution is **acceptable** when
+
+- its **median** stability is ≥ `--verdict-min-median` (default 0.75),
+- at most `--verdict-max-risk-frac` (default 25%) of its clusters are at risk
+  (< `--verdict-risk`, default 0.60), and
+- at most `--verdict-max-risk-cells` (default 5%) of its **cells** are in
+  clusters at risk.
+
+Among acceptable resolutions, the Verdict picks the **finest** (most clusters):
+finer granularity gives more cell-type/state resolution, provided nearly every
+cell sits in a reproducible cluster. If none qualify, it falls back to the
+resolution with the **highest median stability**.
+
+The share of cells is what decides how much of the data gets labels from
+clusters that don't reproduce. Counting clusters alone treats a 12-cell rare
+population that is unstable under subsampling like an unstable split of a large
+one; it let the Verdict pick resolution 2.0 on pbmc3k (12.7% of the cells in
+three unstable CD4 T clusters) and on PBMC 10k (18.1%). With the cell bar,
+pbmc3k gets 1.5 (11 clusters, 3.9% of the cells at risk) and PBMC 10k gets 1.0
+(20 clusters, median 0.95, 0.2% at risk).
 
 The Verdict also lists clusters below the risk threshold to watch (candidates
 for merging, marker re-examination, or sub-clustering). It is written to
@@ -147,9 +170,9 @@ pay off on larger datasets.
 
 ## Known limitations
 
-- **No doublet detection.** Doublets often form small clusters between two
-  populations; run scDblFinder or Scrublet before MatchACell if they matter.
-  Ambient RNA is not corrected either.
+- **Doublet detection is off by default.** Doublets often form small clusters
+  between two populations; turn on `doublets.method: "scDblFinder"` for droplet
+  data. Ambient RNA is not corrected.
 - **Stable is not the same as right.** A cluster that merges two cell types
   with similar PCA coordinates can be perfectly stable. Step 3's marker plot and
   the calls of the annotators are the check.
@@ -169,6 +192,12 @@ wall-clock and per-resolution bootstrap throughput are written to
 `performance/` as CSV, JSON, and PNG, and embedded in the HTML report header.
 
 ## References
+
+- Germain P-L, Lun A, Garcia Meixide C, Macnair W, Robinson MD (2021). Doublet
+  identification in single-cell sequencing data using scDblFinder.
+  *F1000Research* 10:979.
+- Xi NM, Li JJ (2021). Benchmarking computational doublet-detection methods for
+  single-cell RNA sequencing data. *Cell Systems* 12:176–194.
 
 - Germain P-L, Sonrel A, Robinson MD (2020). pipeComp, a general framework for
   the evaluation of computational pipelines, reveals performant single cell

@@ -5,12 +5,62 @@
 # `outputDir` and `config` are provided by the top-level Snakefile that
 # includes this module.
 
+import shlex
+
 _MC = config["matchacell_cluster_stability"]
 
 # type: "normalized" -> the input .X is already log-normalized (raw counts in
 # layers["counts"]): QC, normalization and HVG are skipped and clustering runs
 # on the input's own embedding (use_rep; "auto" prefers X_pca_harmony).
 _NORMALIZED_FLAG = "--normalized" if config.get("type", "singlecell") == "normalized" else ""
+
+# Optional doublet detection (scDblFinder) before QC; off when method is empty.
+_DBL = _MC.get("doublets") or {}
+_DBL_METHOD = str(_DBL.get("method") or "").strip().lower()
+if _DBL_METHOD not in ("", "scdblfinder"):
+    raise ValueError(f"matchacell_cluster_stability.doublets.method: {_DBL_METHOD!r}; "
+                     "use \"scDblFinder\" or \"\" (off)")
+_DBL_ACTION = _DBL.get("action") or "remove"
+if _DBL_ACTION not in ("remove", "flag"):
+    raise ValueError(f"matchacell_cluster_stability.doublets.action: {_DBL_ACTION!r}; "
+                     "use \"remove\" or \"flag\"")
+_DBL_CSV = outputDir + "results/{sample}/matchacell/doublets/scDblFinder.csv"
+
+
+def _doublet_options():
+    # raw counts: .X for raw input, layers["counts"] for normalized input
+    layer = _DBL.get("layer") or ("counts" if _NORMALIZED_FLAG else "")
+    opts = [f"--layer {shlex.quote(layer)}"] if layer else []
+    if _DBL.get("samples_col"):
+        opts.append(f"--samples-col {shlex.quote(str(_DBL['samples_col']))}")
+    if _DBL.get("dbr") not in (None, ""):
+        opts.append(f"--dbr {float(_DBL['dbr'])}")
+    return " ".join(opts)
+
+
+rule doublets:
+    """Doublet calls for one sample with scDblFinder (optional, before QC)."""
+    input:
+        h5ad=outputDir + "results/{sample}/h5/{sample}.h5ad",
+    output:
+        _DBL_CSV,
+    params:
+        options=_doublet_options(),
+    threads: 4
+    resources:
+        mem_mb=cluster_resource("doublets", "mem_mb", 32000),
+        runtime=cluster_resource("doublets", "runtime", 240),
+    conda:
+        "../envs/scdblfinder.yaml"
+    message:
+        "MatchACell · doublets (scDblFinder) · sample {wildcards.sample}"
+    shell:
+        r"""
+        Rscript workflow/scripts/scdblfinder_tool.R \
+            --input {input.h5ad:q} \
+            --output {output:q} \
+            --threads {threads} {params.options}
+        """
 
 
 rule matchacell_cluster_stability:
@@ -20,6 +70,7 @@ rule matchacell_cluster_stability:
         # Always read the staged .h5ad (rule stage_h5 in rds2h5.smk), not
         # config["samples"] directly -- that path may point at a .rds.
         h5ad=outputDir + "results/{sample}/h5/{sample}.h5ad",
+        doublets=_DBL_CSV if _DBL_METHOD else [],
     output:
         clustered_h5ad=outputDir + "results/{sample}/matchacell/clustered_multi_resolution.h5ad",
         verdict=outputDir + "results/{sample}/matchacell/MatchA_Verdict.txt",
@@ -32,6 +83,9 @@ rule matchacell_cluster_stability:
         extra=_MC.get("extra", ""),
         normalized=_NORMALIZED_FLAG,
         use_rep=_MC.get("use_rep", "auto"),
+        doublets=lambda wc, input: (
+            f"--doublets {shlex.quote(str(input.doublets))} --doublet-action {_DBL_ACTION}"
+            if _DBL_METHOD else ""),
     threads: 8
     resources:
         mem_mb=cluster_resource("matchacell_cluster_stability", "mem_mb", 32000),
@@ -48,7 +102,7 @@ rule matchacell_cluster_stability:
             --backend {params.backend} \
             --n-iter  {params.n_iter} \
             --n-jobs  {threads} \
-            --use-rep {params.use_rep} {params.normalized} {params.extra}
+            --use-rep {params.use_rep} {params.normalized} {params.doublets} {params.extra}
         """
         # Optional flags share the last line: Snakemake strips trailing
         # whitespace, so an empty flag on its own line would leave the command

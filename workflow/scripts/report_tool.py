@@ -341,10 +341,12 @@ def explorer_data(run: Run):
             numeric(f"Cluster stability (Jaccard, {run.res_col})",
                     clusters.map(t["stability"]).values, "Step 1 · stability")
     for col, label in [("total_counts", "Total counts"), ("n_genes_by_counts", "Detected genes"),
-                       ("pct_counts_mt", "Mitochondrial %"), ("pct_counts_control", "Control probe %")]:
+                       ("pct_counts_mt", "Mitochondrial %"), ("pct_counts_control", "Control probe %"),
+                       ("doublet_score", "Doublet score (scDblFinder)")]:
         if col in run.obs:
             numeric(label, run.obs[col].iloc[keep].values, "Step 1 · QC",
-                    ".0f" if "counts" in col and "pct" not in col or "genes" in col else ".1f")
+                    ".2f" if col == "doublet_score" else (
+                        ".0f" if "counts" in col and "pct" not in col or "genes" in col else ".1f"))
 
     xy = run.xy[keep]
     return {"x": np.round(xy[:, 0], 3).tolist(), "y": np.round(xy[:, 1], 3).tolist(),
@@ -361,16 +363,19 @@ def step1(run: Run):
     parts.append('<h3 id="s1-qc">Quality control</h3>')
     if qc:
         parts.append(
-            f'<p>Cells are removed when a metric is more than 5 median absolute deviations '
-            f'(MADs) from the median (counts, genes, top-20-gene share), more than 3 MADs '
-            f'(mitochondrial or control-probe %), above the hard mitochondrial ceiling, or '
-            f'below the absolute floors. <b>{int(qc["removed"]):,}</b> of '
+            '<p>Cells are removed when a metric is more than 5 median absolute deviations '
+            '(MADs) from the median (counts, genes, top-20-gene share), more than 3 MADs '
+            '(mitochondrial or control-probe %), above the hard mitochondrial ceiling, or '
+            'below the absolute floors'
+            + (', or called a doublet by scDblFinder' if "removed_by_doublet" in qc else '')
+            + f'. <b>{int(qc["removed"]):,}</b> of '
             f'{int(qc["cells_in"]):,} cells ({qc["pct_removed"]:.1f}%) were removed; '
             f'{int(qc["cells_out"]):,} cells and {run.n_genes:,} genes go on.</p>')
         crit = {k.removeprefix("removed_by_"): v_ for k, v_ in qc.items()
                 if k.startswith("removed_by_")}
         names = {"counts": "total counts", "genes": "detected genes", "mt": "mitochondrial %",
-                 "control": "control probes", "floor": "absolute floor"}
+                 "control": "control probes", "floor": "absolute floor",
+                 "doublet": "doublets (scDblFinder)"}
         f = go.Figure(go.Bar(x=[crit[k] for k in crit], y=[names.get(k, k) for k in crit],
                              orientation="h", marker_color="#3987e5",
                              hovertemplate="%{y}: %{x:,} cells<extra></extra>",
@@ -397,7 +402,8 @@ def step1(run: Run):
         f'stability is its mean best-match Jaccard index over bootstrap subsamples of 80% '
         f'of the cells (Hennig 2007): ≥ {v["high"]:.2f} is highly stable, &lt; '
         f'{v["risk"]:.2f} is at risk. The Verdict picks the finest resolution whose median '
-        f'stability is ≥ 0.75 with at most 25% of its clusters at risk.</p>')
+        f'stability is ≥ 0.75, with at most 25% of its clusters and 5% of its cells in '
+        f'clusters at risk.</p>')
     watch = ", ".join(f"{esc(c)} ({j:.2f})" for c, j in v["watch"]) or "none"
     edge = ('<div class="warnline">⚠ This is the largest resolution swept: the data may stay '
             'stable at higher resolutions. Extend <code>--resolutions</code> or check a coarser '
@@ -419,6 +425,9 @@ def step1(run: Run):
             f"≥ {v['high']:.2f}": s["frac_high"].map(lambda x: fmt(x, pct=True)),
             f"< {v['risk']:.2f}": s["frac_risk"].map(lambda x: fmt(x, pct=True)),
         })
+        if "frac_risk_cells" in s:
+            disp[f"cells in < {v['risk']:.2f}"] = s["frac_risk_cells"].map(
+                lambda x: f"{100 * x:.1f}%")
         parts.append(table_html(disp, raw_cols={"resolution"},
                                 num_cols=set(disp.columns) - {"resolution"}))
     if run.stability:

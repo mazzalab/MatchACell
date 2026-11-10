@@ -46,6 +46,22 @@ matchacell_cluster_stability:
   #           with type "raw", a fresh PCA.
   use_rep: "auto"
 
+  # Doublet detection before QC (droplet single-cell data). "scDblFinder" runs
+  # the R/Bioconductor scDblFinder on the raw counts; "" turns it off.
+  doublets:
+    method: ""
+    # "remove": doublets are one more QC criterion; "flag": keep every cell
+    # and record doublet_score/doublet_class in .obs.
+    action: "remove"
+    # .obs column naming the capture (10x lane) of each cell, when one file
+    # pools several: doublets are simulated within each capture.
+    samples_col: ""
+    # Expected doublet rate; empty -> scDblFinder's default (about 1% per
+    # 1,000 cells captured, the 10x Chromium rate).
+    dbr: ""
+    # Layer with the raw counts; empty -> .X (type raw) or "counts" (normalized).
+    layer: ""
+
 # ── Step 2: Cell Type Annotation ──────────────────────────────────────────
 
 matchacell_annotation:

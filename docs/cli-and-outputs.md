@@ -57,6 +57,8 @@ python workflow/scripts/matchacell_cluster_stability.py \
 | `--min-genes` | `5` | Absolute floor on genes per cell. |
 | `--mt-pct-hard` | `20.0` | Hard mitochondrial-percent ceiling. |
 | `--skip-qc` | off | Skip QC entirely. |
+| `--doublets` | none | Per-cell doublet calls (CSV: cell, doublet_score, doublet_class), written by the `doublets` rule. Adds `doublet_score` and `doublet_class` to `.obs`. |
+| `--doublet-action` | `remove` | `remove`: doublets are one more QC criterion; `flag`: keep every cell. |
 
 ### Stability, transitions, report
 | Flag | Default | Description |
@@ -75,6 +77,7 @@ python workflow/scripts/matchacell_cluster_stability.py \
 | `--verdict-risk` | `0.60` | Risk threshold for unstable clusters. |
 | `--verdict-min-median` | `0.75` | Minimum median stability to be acceptable. |
 | `--verdict-max-risk-frac` | `0.25` | Max fraction of risky clusters allowed. |
+| `--verdict-max-risk-cells` | `0.05` | Max fraction of cells in risky clusters allowed. |
 
 ### Misc
 | Flag | Default | Description |
@@ -93,11 +96,14 @@ All paths are relative to `--outdir`
 ```
 clustered_multi_resolution.h5ad     # tracked output: all leiden_<res> + embeddings + uns
 MatchA_Verdict.txt                  # the recommendation, human-readable
-MatchACell_report.html              # self-contained interactive report (start here)
+MatchACell_report.html              # Step 1 report
+MatchACell_full_report.html         # Steps 1-3 report (consensus target)
 clustree_<thr>.png                  # cluster tree across resolutions (if pyclustree)
 
+doublets/scDblFinder.csv            # per-cell doublet calls (doublets rule, when enabled)
+
 qc/
-  qc_summary.csv
+  qc_summary.csv                    # cells in/out and cells flagged per criterion
   qc_violin_kept_vs_removed.png
   qc_hist_mad_bounds.png
   qc_counts_vs_genes.png
