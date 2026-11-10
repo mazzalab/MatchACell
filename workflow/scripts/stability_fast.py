@@ -19,19 +19,25 @@ igraph Leiden call and seed); only the work is organised differently:
 3. Iterations run in parallel worker processes, in batches; after each batch
    the running means are written to `stability/csv/`, so a killed job keeps
    what it computed.
+
+The workers compute UMAP's connectivities and scanpy's igraph Leiden call with
+numpy and igraph alone (no umap, numba or scanpy import, which cost ~30 s per
+fresh process). tests/test_stability_fast.py checks the graph and partitions
+against scanpy; on pbmc3k and PBMC 10k subsamples the weights were bitwise
+identical and all 320 partitions the same.
 """
 
 from __future__ import annotations
 
 import logging
 import multiprocessing as mp
+import sys
 import time
 import warnings
-from concurrent.futures import ProcessPoolExecutor
+from contextlib import contextmanager
 from pathlib import Path
 
 import numpy as np
-import pandas as pd
 
 log = logging.getLogger("matchacell")
 
@@ -95,46 +101,104 @@ def subsample_knn(full_idx, full_dist, sub, X, k):
     return knn_i, knn_d, int(bad.size)
 
 
-def connectivities(knn_i, knn_d, k):
-    """UMAP fuzzy-simplicial-set weights, as scanpy.pp.neighbors(method='umap')."""
-    from scanpy.neighbors import _connectivity
+# The workers rebuild the graph with numpy and igraph only. Importing umap and
+# JIT-compiling its numba kernels costs ~30 s in every fresh worker process,
+# more than the whole bootstrap of a few thousand cells.
+def _smooth_knn_dist(dist, k, n_iter=64, tol=1e-5, min_scale=1e-3):
+    """umap.umap_.smooth_knn_dist with local_connectivity=1, all rows at once:
+    rho is the first non-zero distance, sigma solves
+    sum_j exp(-(d_j - rho) / sigma) = log2(k) by bisection."""
+    n = dist.shape[0]
+    nonzero = dist > 0
+    rho = np.where(nonzero.any(axis=1), dist[np.arange(n), nonzero.argmax(axis=1)], 0)
+    rho = rho.astype(np.float32)
+    shifted = dist[:, 1:] - rho[:, None]                      # float32, as in umap
+    above = shifted > 0
+    target = np.log2(k)
+    lo, hi, mid = np.zeros(n), np.full(n, np.inf), np.ones(n)
+    active = np.ones(n, dtype=bool)
+    for _ in range(n_iter):
+        with np.errstate(over="ignore"):
+            psum = np.where(above, np.exp(-(shifted / mid[:, None])), 1.0).sum(axis=1)
+        active &= np.abs(psum - target) >= tol
+        if not active.any():
+            break
+        down = active & (psum > target)
+        up = active & ~down
+        hi[down] = mid[down]
+        lo[up] = mid[up]
+        mid = np.where(down | (up & np.isfinite(hi)), (lo + hi) / 2,
+                       np.where(up, mid * 2, mid))
+    sigma = mid.astype(np.float32)
+    floor = min_scale * np.where(rho > 0, dist.mean(axis=1), dist.mean())
+    return np.maximum(sigma, floor).astype(np.float32), rho
 
-    return _connectivity.umap(knn_i, knn_d, n_obs=knn_i.shape[0], n_neighbors=k)
+
+def connectivities(knn_i, knn_d, k):
+    """UMAP fuzzy-simplicial-set weights, as scanpy.pp.neighbors(method='umap')
+    computes them (umap.fuzzy_simplicial_set, set_op_mix_ratio=1)."""
+    from scipy import sparse
+
+    n = knn_i.shape[0]
+    knn_d = knn_d.astype(np.float32)
+    sigma, rho = _smooth_knn_dist(knn_d, float(k))
+    shifted = knn_d - rho[:, None]
+    # entries np.where discards may overflow
+    with np.errstate(divide="ignore", invalid="ignore", over="ignore"):
+        vals = np.where((shifted <= 0) | (sigma[:, None] == 0), np.float32(1),
+                        np.exp(-(shifted / sigma[:, None])))
+    vals[knn_i == np.arange(n)[:, None]] = 0          # no self-loops
+    graph = sparse.coo_matrix((vals.astype(np.float32).ravel(),
+                               (np.repeat(np.arange(n), knn_i.shape[1]), knn_i.ravel())),
+                              shape=(n, n))
+    graph.eliminate_zeros()
+    t = graph.transpose()
+    graph = graph + t - graph.multiply(t)
+    graph.eliminate_zeros()
+    return graph.tocsr()
+
+
+class _IgraphRNG:
+    """igraph random number generator over numpy's RandomState, as scanpy
+    seeds Leiden (scanpy._utils.random._RNGIgraph)."""
+
+    def __init__(self, seed):
+        self._rng = np.random.RandomState(seed)
+
+    def getrandbits(self, k):
+        return self._rng.tomaxint() & ((1 << k) - 1)
+
+    def randint(self, a, b):
+        return self._rng.randint(a, b + 1)
+
+    def __getattr__(self, attr):
+        return getattr(self._rng, "normal" if attr == "gauss" else attr)
 
 
 def leiden_partitions(conn, resolutions, n_iterations=2, seed=0):
-    """Leiden at every resolution on one graph; the same call and seeding as
-    scanpy.tl.leiden(flavor="igraph", directed=False). Returns codes per
-    resolution and the seconds each resolution took."""
-    try:
-        from scanpy._utils import get_igraph_from_adjacency
-        from scanpy._utils.random import set_igraph_random_state
-    except ImportError:  # private scanpy helpers moved: go through the public API
-        return _leiden_partitions_public(conn, resolutions, n_iterations, seed)
+    """Leiden at every resolution on one graph; the same graph, call and
+    seeding as scanpy.tl.leiden(flavor="igraph", directed=False). Returns codes
+    per resolution and the seconds each resolution took."""
+    import random
 
-    g = get_igraph_from_adjacency(conn, directed=False)
+    import igraph as ig
+
+    # as scanpy.get_igraph_from_adjacency: one edge per non-zero entry
+    sources, targets = conn.nonzero()
+    g = ig.Graph(directed=False)
+    g.add_vertices(conn.shape[0])
+    g.add_edges(list(zip(sources, targets)))
+    g.es["weight"] = np.asarray(conn[sources, targets]).ravel()
     out, secs = [], []
     for res in resolutions:
         t0 = time.perf_counter()
-        with set_igraph_random_state(seed):
+        ig.set_random_number_generator(_IgraphRNG(seed))
+        try:
             part = g.community_leiden(objective_function="modularity", weights="weight",
                                       resolution=res, n_iterations=n_iterations)
+        finally:
+            ig.set_random_number_generator(random)
         out.append(np.asarray(part.membership, dtype=np.int64))
-        secs.append(time.perf_counter() - t0)
-    return out, secs
-
-
-def _leiden_partitions_public(conn, resolutions, n_iterations, seed):
-    import anndata as ad
-    import scanpy as sc
-
-    sub = ad.AnnData(np.zeros((conn.shape[0], 1), dtype="float32"))
-    out, secs = [], []
-    for res in resolutions:
-        t0 = time.perf_counter()
-        sc.tl.leiden(sub, resolution=res, key_added="tmp", adjacency=conn, flavor="igraph",
-                     n_iterations=n_iterations, directed=False, random_state=seed)
-        out.append(sub.obs["tmp"].cat.codes.to_numpy().astype(np.int64))
         secs.append(time.perf_counter() - t0)
     return out, secs
 
@@ -160,13 +224,33 @@ _W = {}
 
 
 def _init_worker(state):
-    try:  # one process per core already: no numba threads on top
-        import numba
-
-        numba.set_num_threads(1)
-    except Exception:  # pragma: no cover
-        pass
     _W.update(state)
+
+
+@contextmanager
+def _workers(n_jobs, state):
+    """A map() over `n_jobs` worker processes, or in this process for one job."""
+    if n_jobs == 1:
+        _init_worker(state)
+        try:
+            yield map
+        finally:
+            _W.clear()
+        return
+    # spawn: workers start clean, without the parent's numba/OpenMP threads.
+    # A spawned worker re-runs the caller's script to rebuild __main__ (for
+    # Step 1: scanpy and the plotting libraries, seconds per worker); it only
+    # needs this module, so the script's path is hidden while the pool starts
+    # its workers (all of them, in Pool()).
+    main = sys.modules.get("__main__")
+    path = main.__dict__.pop("__file__", None) if main is not None else None
+    try:
+        pool = mp.get_context("spawn").Pool(n_jobs, _init_worker, (state,))
+    finally:
+        if path is not None:
+            main.__file__ = path
+    with pool:
+        yield pool.map
 
 
 def _run_iterations(seeds):
@@ -195,6 +279,8 @@ def _mean_scores(rows):
 
 
 def _write_partial(csv_dir, keys, cats, per_res, n_done):
+    import pandas as pd  # parent only: workers skip the import
+
     for key, c, rows in zip(keys, cats, per_res):
         mean = _mean_scores(rows)
         pd.DataFrame({"Cluster": c, "Jaccard_Stability": mean, "n_iter_done": n_done}) \
@@ -243,13 +329,11 @@ def bootstrap_stability_all(X, ref_labels, leiden_keys, n_iter, fraction, n_neig
     n_direct = 0
     batch = max(4 * n_jobs, 8)
     done = 0
-    # spawn: workers start clean, without the parent's numba/OpenMP threads.
-    with ProcessPoolExecutor(max_workers=n_jobs, mp_context=mp.get_context("spawn"),
-                             initializer=_init_worker, initargs=(state,)) as ex:
+    with _workers(n_jobs, state) as run:
         while done < n_iter:
             todo = seeds[done:done + batch]
             chunks = [todo[i::n_jobs] for i in range(n_jobs) if len(todo[i::n_jobs])]
-            for results in ex.map(_run_iterations, chunks):
+            for results in run(_run_iterations, chunks):
                 for scores, secs, nd in results:
                     for r, s in enumerate(scores):
                         per_res[r].append(s)

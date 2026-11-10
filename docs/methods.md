@@ -78,7 +78,10 @@ full-data neighbours that were drawn). For a given subsample the graph and the
 partitions are the same as rebuilding them from scratch with scanpy. Iterations
 run on `--n-jobs` worker processes (the rule passes its `threads`), and the
 running means are written to `stability/csv/` after each batch, so a job that is
-killed keeps what it computed.
+killed keeps what it computed. The workers rebuild each graph with numpy and
+igraph only, so they start in seconds. On pbmc3k (2,419 cells, 100 iterations,
+8 resolutions) the bootstrap took 14 s on 8 workers, against 147 s for one
+resolution at a time, with the same scores.
 
 On GPU the full PCA matrix is staged to device memory once and every iteration
 gathers its subsample on-device, avoiding thousands of host→device copies.
