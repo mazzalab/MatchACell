@@ -47,6 +47,7 @@ rule matchacell_cluster_stability:
             --outdir  {params.outdir} \
             --backend {params.backend} \
             --n-iter  {params.n_iter} \
+            --n-jobs  {threads} \
             --use-rep {params.use_rep} {params.normalized} {params.extra}
         """
         # Optional flags share the last line: Snakemake strips trailing

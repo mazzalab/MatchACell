@@ -68,18 +68,14 @@ must exist.
 ## Keep every gene for annotation
 
 With Step 1's default `--use-hvg auto`, a matrix with more than 2,000 genes is
-reduced to its 2,000 most variable genes, and that reduced object is what every
-annotator reads. Pretrained models and marker signatures then lose most of their
-genes: on a PBMC sample, the T-cell marker *CD3D* was among those dropped. Before
-running Step 2, keep all genes and rerun Step 1:
+clustered on its 2,000 most variable genes, but the object the annotators read
+keeps every gene: the highly variable genes only drive PCA. Pretrained models and
+marker signatures therefore find their genes (on a PBMC sample, the T-cell marker
+*CD3D* is not highly variable). Results from before this change kept only the
+highly variable genes; rerun Step 1 to regenerate them.
 
-```yaml
-matchacell_cluster_stability:
-  extra: "--use-hvg no"
-```
-
-PCA and clustering then use all genes too. This also avoids an
-[AddModuleScore failure on small gene sets](addmodulescore.md#notes).
+`--use-hvg no` runs PCA on all genes instead; it changes the clustering, not the
+genes the annotators see.
 
 ## The signature workbook
 

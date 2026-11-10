@@ -33,7 +33,7 @@ def prepare_query(adata, model_genes, layer):
     if fraction < 0.8:
         warnings.warn(
             "Fewer than 80% of model genes are present. Check species/gene identifiers; "
-            "consider rerunning Step 1 with --use-hvg no.",
+            "rerun Step 1 if it predates keeping every gene.",
             stacklevel=2,
         )
     view = adata[:, common]

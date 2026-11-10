@@ -50,6 +50,8 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from scipy.stats import median_abs_deviation
 
+from stability_fast import bootstrap_stability_all
+
 # Optional dependencies -------------------------------------------------------
 try:
     from pyclustree import clustree
@@ -639,15 +641,19 @@ def preprocess_and_cluster(adata, rsc, use_gpu, resolutions, n_pcs, n_neighbors,
         adata.layers["lognorm"] = adata.X.copy()
 
     if use_hvg and not normalized:
+        # HVGs drive PCA only: the saved object keeps every gene, because the
+        # annotators need them (pretrained models, marker signatures).
         pp.highly_variable_genes(adata, n_top_genes=2000)
-        # Subset to HVG for PCA/clustering. Note: this also subsets the `counts`
-        # and `lognorm` layers to the HVG set. We deliberately do NOT set
-        # `adata.raw` here because raw would hold GPU arrays and break the .h5ad
-        # write; full-gene matrices are not needed for the stability step.
-        adata = adata[:, adata.var["highly_variable"]].copy()
 
     if use_rep == "X_pca" and not (normalized and "X_pca" in adata.obsm):
-        pp.pca(adata, n_comps=n_pcs)
+        if use_hvg and not normalized:
+            hvg = adata[:, adata.var["highly_variable"].values].copy()
+            pp.pca(hvg, n_comps=n_pcs)
+            adata.obsm["X_pca"] = hvg.obsm["X_pca"]
+            adata.uns["pca"] = hvg.uns["pca"]
+            del hvg
+        else:
+            pp.pca(adata, n_comps=n_pcs)
     else:
         log.info("Using existing embedding %s (no PCA).", use_rep)
     n_dims = min(n_pcs, adata.obsm[use_rep].shape[1])
@@ -740,14 +746,17 @@ def _cluster_subsample(pca_sub, resolution, rsc, use_gpu, n_neighbors):
 
 
 def bootstrap_stability(adata, res_key, resolution, rsc, use_gpu, n_iter,
-                        fraction, n_neighbors, rng, X_dev=None, use_rep="X_pca"):
+                        fraction, n_neighbors, rng, X_dev=None, X_host=None):
     """Bootstrap Jaccard stability for one resolution.
 
     When `X_dev` is provided (a cupy array of the full PCA matrix already on the
     GPU), each iteration gathers its subsample on-device (`X_dev[idx]`) instead
     of copying a fresh PCA slice from host to device every time. This collapses
     ~n_iter host->device transfers into the single up-front transfer that built
-    `X_dev`.
+    `X_dev`. `X_host` is the host embedding (default: the X_pca matrix).
+
+    The CPU bootstrap goes through stability_fast.bootstrap_stability_all,
+    which computes this estimator for every resolution at once.
     """
     labels = adata.obs[res_key].astype(str).values
     clusters = pd.unique(labels)
@@ -759,8 +768,8 @@ def bootstrap_stability(adata, res_key, resolution, rsc, use_gpu, n_iter,
     use_dev = use_gpu and X_dev is not None
     if use_dev:
         import cupy as cp
-    else:
-        X_host = np.asarray(adata.obsm[use_rep], dtype="float32")
+    elif X_host is None:
+        X_host = np.asarray(adata.obsm["X_pca"], dtype="float32")
 
     for it in range(n_iter):
         idx = rng.choice(n, size=k, replace=False)
@@ -791,68 +800,45 @@ def bootstrap_stability(adata, res_key, resolution, rsc, use_gpu, n_iter,
 
 
 def run_all_stability(adata, leiden_keys, rsc, use_gpu, n_iter, fraction,
-                      n_neighbors, outdir, rng, perf=None, use_rep="X_pca"):
+                      n_neighbors, outdir, rng, perf=None, use_rep="X_pca",
+                      n_dims=None, n_jobs=1, seed=0):
     stabdir = outdir / "stability"
-    stabdir.mkdir(parents=True, exist_ok=True)
+    csv_dir = stabdir / "csv"
+    csv_dir.mkdir(parents=True, exist_ok=True)
     excel_path = stabdir / "Cluster_Stability_Summary.xlsx"
+    # Same columns of the embedding as the neighbour graph of the main clustering.
+    X = np.asarray(adata.obsm[use_rep][:, :n_dims], dtype="float32")
 
-    # Move the full PCA matrix to the GPU ONCE and reuse it for every resolution
-    # and every bootstrap iteration (the PCA is identical across resolutions).
-    X_dev = None
     if use_gpu:
-        try:
-            import cupy as cp
+        results = _stability_per_resolution(adata, X, leiden_keys, rsc, n_iter, fraction,
+                                            n_neighbors, csv_dir, rng, perf)
+    else:
+        t0 = time.perf_counter()
+        scores, leiden_secs, k = bootstrap_stability_all(
+            X, [adata.obs[key].values for key in leiden_keys], leiden_keys, n_iter,
+            fraction, n_neighbors, seed=seed, n_jobs=n_jobs, csv_dir=csv_dir)
+        secs = time.perf_counter() - t0
+        log.info("  bootstrap done in %s (%.1f iters/s, %d worker(s)).",
+                 Theme.matcha(f"{secs:.1f}s"), n_iter / max(secs, 1e-9), n_jobs)
+        # Resolutions share each subsample's graph: split the wall-clock time
+        # between them in proportion to the time their Leiden runs took.
+        share = leiden_secs / max(leiden_secs.sum(), 1e-9)
+        results = list(zip(leiden_keys, scores))
+        if perf is not None:
+            for (res_key, res), f in zip(results, share):
+                perf.add_stability(res_key.replace("leiden_", ""), len(res), n_iter,
+                                   secs * f, k)
 
-            X_dev = cp.asarray(np.asarray(adata.obsm[use_rep], dtype="float32"))
-            log.info("PCA matrix moved to GPU once (%s rows) for the bootstrap.",
-                     X_dev.shape[0])
-            # Warm-up: compile/init cuML+cuGraph kernels so the first timed
-            # resolution is not charged for one-off JIT/allocation costs.
-            try:
-                _ = _cluster_subsample(
-                    X_dev[cp.asarray(rng.choice(adata.n_obs,
-                          size=min(adata.n_obs, max(50, n_neighbors + 1)),
-                          replace=False))],
-                    float(leiden_keys[0].split("_", 1)[1]), rsc, True, n_neighbors)
-                log.info("GPU kernels warmed up.")
-            except Exception as e:  # pragma: no cover
-                log.warning("Warm-up skipped: %s", e)
-        except Exception as e:  # pragma: no cover
-            log.warning("Could not stage PCA on GPU (%s); per-iter transfer used.", e)
-            X_dev = None
-
+    # The workbook is built only at the end; csv/ already holds every resolution.
     rows = []
     with pd.ExcelWriter(excel_path) as writer:
-        for res_key in leiden_keys:
-            resolution = float(res_key.split("_", 1)[1])
-            log.info("Stability for %s ...", res_key)
-            t0 = time.perf_counter()
-            res, k = bootstrap_stability(adata, res_key, resolution, rsc, use_gpu,
-                                         n_iter, fraction, n_neighbors, rng, X_dev=X_dev,
-                                         use_rep=use_rep)
-            secs = time.perf_counter() - t0
-            if perf is not None:
-                perf.add_stability(res_key.replace("leiden_", ""),
-                                   len(res), n_iter, secs, k)
-            log.info("  %s done in %s (%.1f iters/s).", res_key,
-                     Theme.matcha(f"{secs:.1f}s"), n_iter / max(secs, 1e-9))
+        for res_key, res in results:
             df = pd.DataFrame.from_dict(res, orient="index", columns=["Jaccard_Stability"])
             df.index.name = "Cluster"
             df.to_excel(writer, sheet_name=res_key[:31])
             for cluster, score in res.items():
                 rows.append({"Resolution": res_key.replace("leiden_", ""),
                              "Cluster": cluster, "Jaccard_Stability": score})
-
-    # Free the device matrix promptly.
-    if X_dev is not None:
-        try:
-            del X_dev
-            import cupy as cp
-
-            cp.get_default_memory_pool().free_all_blocks()
-        except Exception:  # pragma: no cover
-            pass
-
     master = pd.DataFrame(rows)
 
     plt.figure(figsize=(12, 7))
@@ -875,6 +861,62 @@ def run_all_stability(adata, leiden_keys, rsc, use_gpu, n_iter, fraction,
                 bbox_inches="tight")
     plt.close()
     return master
+
+
+def _stability_per_resolution(adata, X, leiden_keys, rsc, n_iter, fraction, n_neighbors,
+                              csv_dir, rng, perf=None):
+    """GPU bootstrap: one resolution at a time, each written to csv/ as it
+    finishes. Returns [(res_key, {cluster: mean Jaccard})]."""
+    # Move the embedding to the GPU ONCE and reuse it for every resolution
+    # and every bootstrap iteration (it is identical across resolutions).
+    X_dev = None
+    try:
+        import cupy as cp
+
+        X_dev = cp.asarray(X)
+        log.info("Embedding moved to GPU once (%s rows) for the bootstrap.", X_dev.shape[0])
+        # Warm-up: compile/init cuML+cuGraph kernels so the first timed
+        # resolution is not charged for one-off JIT/allocation costs.
+        try:
+            _ = _cluster_subsample(
+                X_dev[cp.asarray(rng.choice(adata.n_obs,
+                      size=min(adata.n_obs, max(50, n_neighbors + 1)),
+                      replace=False))],
+                float(leiden_keys[0].split("_", 1)[1]), rsc, True, n_neighbors)
+            log.info("GPU kernels warmed up.")
+        except Exception as e:  # pragma: no cover
+            log.warning("Warm-up skipped: %s", e)
+    except Exception as e:  # pragma: no cover
+        log.warning("Could not stage the embedding on GPU (%s); per-iter transfer used.", e)
+        X_dev = None
+
+    results = []
+    for res_key in leiden_keys:
+        resolution = float(res_key.split("_", 1)[1])
+        log.info("Stability for %s ...", res_key)
+        t0 = time.perf_counter()
+        res, k = bootstrap_stability(adata, res_key, resolution, rsc, True, n_iter,
+                                     fraction, n_neighbors, rng, X_dev=X_dev, X_host=X)
+        secs = time.perf_counter() - t0
+        if perf is not None:
+            perf.add_stability(res_key.replace("leiden_", ""), len(res), n_iter, secs, k)
+        log.info("  %s done in %s (%.1f iters/s).", res_key,
+                 Theme.matcha(f"{secs:.1f}s"), n_iter / max(secs, 1e-9))
+        pd.DataFrame({"Cluster": list(res), "Jaccard_Stability": list(res.values()),
+                      "n_iter_done": n_iter}) \
+            .to_csv(csv_dir / f"stability_{res_key.replace('leiden_', '')}.csv", index=False)
+        results.append((res_key, res))
+
+    # Free the device matrix promptly.
+    if X_dev is not None:
+        try:
+            del X_dev
+            import cupy as cp
+
+            cp.get_default_memory_pool().free_all_blocks()
+        except Exception:  # pragma: no cover
+            pass
+    return results
 
 
 # =========================================================================== #
@@ -904,6 +946,10 @@ def compute_verdict(master: pd.DataFrame, high=0.85, risk=0.60,
     (most clusters) - finer granularity gives more cell-type/state resolution
     for annotation, provided it stays stable. If none qualify, fall back to the
     resolution with the highest median stability.
+
+    `at_sweep_edge` is set when the finest stable resolution is also the largest
+    resolution swept: the clustering may still be stable at higher resolutions,
+    so the choice says more about the sweep than about the data.
     """
     summary = resolution_summary(master)
 
@@ -916,6 +962,8 @@ def compute_verdict(master: pd.DataFrame, high=0.85, risk=0.60,
     else:
         rec = summary["median"].idxmax()
         basis = "fallback: highest median stability (no resolution met the bar)"
+    at_sweep_edge = bool(not acceptable.empty
+                         and float(rec) == max(float(r) for r in summary.index))
 
     rec_row = summary.loc[rec]
     unstable = (
@@ -932,6 +980,7 @@ def compute_verdict(master: pd.DataFrame, high=0.85, risk=0.60,
         "frac_high": float(rec_row["frac_high"]),
         "frac_risk": float(rec_row["frac_risk"]),
         "unstable_clusters": unstable,
+        "at_sweep_edge": at_sweep_edge,
         "thresholds": {"high": high, "risk": risk,
                        "min_median": min_median, "max_risk_frac": max_risk_frac},
     }
@@ -947,6 +996,11 @@ def render_verdict_text(v: dict) -> str:
     lines.append(f"Clusters >= {v['thresholds']['high']:.2f}      : {100*v['frac_high']:.0f}%")
     lines.append(f"Clusters <  {v['thresholds']['risk']:.2f}      : {100*v['frac_risk']:.0f}%")
     lines.append(f"Selection basis        : {v['basis']}")
+    if v.get("at_sweep_edge"):
+        lines.append("Note                   : this is the largest resolution swept; "
+                     "check coarser stable")
+        lines.append("                         resolutions (or extend --resolutions) "
+                     "before annotating.")
     lines.append("")
     if len(v["unstable_clusters"]):
         lines.append("Watch these clusters during annotation (below risk threshold):")
@@ -976,6 +1030,9 @@ def print_verdict(v: dict):
                      f">=high: {100*v['frac_high']:.0f}%   "
                      f"<risk: {100*v['frac_risk']:.0f}%"))
     print(Theme.dim(f"  basis: {v['basis']}"))
+    if v.get("at_sweep_edge"):
+        print(Theme.paint("  note: largest resolution swept -- check coarser stable "
+                          "resolutions", (200, 170, 60)))
     if len(v["unstable_clusters"]):
         watch = ", ".join(str(c) for c in v["unstable_clusters"]["Cluster"].tolist())
         print(Theme.paint(f"  watch clusters: {watch}", (200, 170, 60)))
@@ -1164,6 +1221,9 @@ def _assemble_html(divs, verdict, summary, perf=None):
     if verdict is not None:
         watch = ", ".join(str(c) for c in verdict["unstable_clusters"]["Cluster"].tolist()) \
             if len(verdict["unstable_clusters"]) else "none"
+        edge_html = ('\n          <div class="verdict-watch">note: this is the largest '
+                     'resolution swept; check coarser stable resolutions</div>'
+                     if verdict.get("at_sweep_edge") else "")
         verdict_html = f"""
         <div class="verdict">
           <div class="verdict-title">MatchA Verdict</div>
@@ -1173,7 +1233,7 @@ def _assemble_html(divs, verdict, summary, perf=None):
             &middot; {100*verdict['frac_high']:.0f}% high &middot; {100*verdict['frac_risk']:.0f}% risky
           </div>
           <div class="verdict-basis">{verdict['basis']}</div>
-          <div class="verdict-watch">watch clusters: {watch}</div>
+          <div class="verdict-watch">watch clusters: {watch}</div>{edge_html}
         </div>"""
 
     summary_html = summary.round(3).to_html(classes="summary", border=0) \
@@ -1304,6 +1364,9 @@ def parse_args(argv=None):
 
     # stability
     p.add_argument("--n-iter", type=int, default=100)
+    p.add_argument("--n-jobs", type=int, default=1,
+                   help="Worker processes for the CPU bootstrap (the Snakemake rule "
+                        "passes its threads).")
     p.add_argument("--fraction", type=float, default=0.8)
     p.add_argument("--skip-stability", action="store_true")
     p.add_argument("--skip-transitions", action="store_true")
@@ -1400,7 +1463,9 @@ def main(argv=None):
         with stage("stability"):
             master = run_all_stability(adata, leiden_keys, rsc, stab_use_gpu, args.n_iter,
                                        args.fraction, args.n_neighbors, args.outdir, rng,
-                                       perf=perf, use_rep=use_rep)
+                                       perf=perf, use_rep=use_rep,
+                                       n_dims=min(args.n_pcs, adata.obsm[use_rep].shape[1]),
+                                       n_jobs=max(1, args.n_jobs), seed=args.seed)
         verdict = compute_verdict(master, high=args.verdict_high, risk=args.verdict_risk,
                                   min_median=args.verdict_min_median,
                                   max_risk_frac=args.verdict_max_risk_frac)

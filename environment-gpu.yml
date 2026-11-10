@@ -25,7 +25,7 @@ dependencies:
   - rmm=24.*
   - cupy
   # Single-cell core (CPU fallback path + shared deps)
-  - scanpy>=1.9
+  - scanpy>=1.10      # flavor="igraph" Leiden
   - anndata>=0.9
   - leidenalg
   - python-igraph

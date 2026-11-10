@@ -102,12 +102,8 @@ python tools/fetch_pbmc3k.py data/pbmc3k.h5ad
 Each rule's conda environment is built on first use, so the first run of each
 step takes longer. See [`docs/installation.md`](docs/installation.md).
 
-> **Before running Step 2, check two defaults in `config.yaml`:**
+> **Before running Step 2, check this default in `config.yaml`:**
 >
-> - Step 1 keeps only the 2,000 most variable genes in the object the
->   annotators read. Set `matchacell_cluster_stability.extra: "--use-hvg no"` so
->   pretrained models and signatures keep their genes
->   ([why](docs/annotators/README.md#keep-every-gene-for-annotation)).
 > - CellTypeAI is on by default (`celltypeai.tissue: "Immune system"`). The rule
 >   starts its own Ollama server; set `tissue: ""` to skip it.
 

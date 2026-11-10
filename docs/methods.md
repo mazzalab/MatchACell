@@ -48,7 +48,8 @@ highest-expressed-genes plot) are written to `qc/`.
 
 `normalize_total → log1p → (optional HVG, top 2,000 genes) → PCA → neighbours`.
 HVG selection is automatic when the matrix has more than 2,000 genes
-(`--use-hvg auto`). Leiden is then run across the resolution sweep
+(`--use-hvg auto`). The highly variable genes only drive PCA: the saved object
+keeps every gene for the annotators. Leiden is then run across the resolution sweep
 (`--resolutions`, default `0.1 … 2.0`), producing one `leiden_<res>` column per
 resolution. PCA / t-SNE / UMAP embeddings are coloured by every resolution and
 saved to `embeddings/`. A `clustree` is written when `pyclustree` is installed.
@@ -68,6 +69,16 @@ resampling:
 
 The result is a per-cluster stability score in `[0, 1]`. A boxplot across
 resolutions and a per-resolution Excel summary are written to `stability/`.
+
+On CPU every resolution is scored on the same subsamples. Each iteration builds
+the subsample's graph once and runs Leiden at every resolution on it; the
+subsample's kNN is read off one full-data kNN with `3 × --n-neighbors`
+neighbours (a cell's nearest neighbours inside the subsample are its first
+full-data neighbours that were drawn). For a given subsample the graph and the
+partitions are the same as rebuilding them from scratch with scanpy. Iterations
+run on `--n-jobs` worker processes (the rule passes its `threads`), and the
+running means are written to `stability/csv/` after each batch, so a job that is
+killed keeps what it computed.
 
 On GPU the full PCA matrix is staged to device memory once and every iteration
 gathers its subsample on-device, avoiding thousands of host→device copies.

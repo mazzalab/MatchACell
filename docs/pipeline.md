@@ -188,9 +188,7 @@ matchacell_annotation:
   estimates at the cost of runtime.
 - **`extra`** is forwarded verbatim to `matchacell_cluster_stability.py`, so any
   flag in [`cli-and-outputs.md`](cli-and-outputs.md) can be set there, e.g.
-  `"--resolutions 0.2 0.5 1.0 2.0 --skip-tsne --use-hvg no"`. Use
-  `--use-hvg no` before annotation; see
-  [Keep every gene for annotation](annotators/README.md#keep-every-gene-for-annotation).
+  `"--resolutions 0.2 0.5 1.0 2.0 --skip-tsne"`.
 - **`matchacell_annotation`** holds one section per annotator, documented on each
   [annotator's page](annotators/README.md). Keep every section, even for
   annotators you ignore: most rules read theirs when the workflow is parsed.

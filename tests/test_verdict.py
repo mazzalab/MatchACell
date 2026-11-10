@@ -37,6 +37,24 @@ def test_verdict_picks_finest_stable_resolution():
     assert len(v["unstable_clusters"]) == 0
 
 
+def test_verdict_flags_largest_resolution_of_the_sweep():
+    master = _master(
+        [("0.2", str(c), 0.9) for c in range(2)]
+        + [("0.5", str(c), 0.88) for c in range(4)]
+    )
+    v = mc.compute_verdict(master)
+    assert v["recommended"] == "0.5" and v["at_sweep_edge"]
+    assert "largest resolution swept" in mc.render_verdict_text(v)
+
+    # a coarser resolution wins once the finest one is unstable
+    master = _master(
+        [("0.2", str(c), 0.9) for c in range(2)]
+        + [("0.5", str(c), 0.5) for c in range(4)]
+    )
+    v = mc.compute_verdict(master)
+    assert v["recommended"] == "0.2" and not v["at_sweep_edge"]
+
+
 def test_verdict_falls_back_when_nothing_qualifies():
     # Every resolution is risky -> fallback to the highest median.
     master = _master([

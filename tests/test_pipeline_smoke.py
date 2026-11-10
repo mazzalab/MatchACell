@@ -51,3 +51,19 @@ def test_cpu_pipeline_end_to_end(tiny_h5ad, tmp_path):
     if html.exists():  # only when plotly is installed
         text = html.read_text(encoding="utf-8")
         assert "cells" in text
+
+
+def test_hvg_only_drives_pca(rng):
+    """HVG selection must not drop genes from the object the annotators read."""
+    ad = pytest.importorskip("anndata")
+    n_genes = 2500                                   # > 2,000 so HVG selection bites
+    X = rng.poisson(rng.gamma(0.5, 2.0, size=n_genes), size=(300, n_genes)).astype("float32")
+    a = ad.AnnData(X=X)
+    a.var_names = [f"GENE{i}" for i in range(n_genes)]
+    out = mc.preprocess_and_cluster(
+        a, None, False, [0.5], n_pcs=10, n_neighbors=15, use_hvg=True,
+        do_tsne=False, do_umap=False)
+    assert out.n_vars == a.n_vars                    # no gene dropped
+    assert out.var["highly_variable"].sum() == 2000  # PCA used the HVGs only
+    assert out.obsm["X_pca"].shape == (out.n_obs, 10)
+    assert {"counts", "lognorm"} <= set(out.layers)

@@ -88,10 +88,10 @@ python workflow/scripts/scparadise_tool.py \
   normalize again or change the input's expression, counts, `.raw`, or embeddings.
 - Model and input gene identifiers must match, including species and naming
   convention. No overlap is an error; less than 80% emits a warning. Missing
-  model genes are zero-filled by scAdam. Step 1's default HVG selection can
-  discard model genes: set `matchacell_cluster_stability.extra: "--use-hvg no"`
-  and regenerate Step 1 when you need to retain them. Targeted spatial panels
-  can also have low overlap; interpret their predictions accordingly.
+  model genes are zero-filled by scAdam. Step 1 keeps every gene of the input
+  (highly variable genes only drive PCA), so low overlap points to species or
+  naming. Targeted spatial panels can also have low overlap; interpret their
+  predictions accordingly.
 - `label_level: 0` selects the finest available level for reporting; positive
   integers select a particular level. All levels and probabilities are retained.
 - `threshold` is a probability cutoff for the selected label in `cell_type_pred`.

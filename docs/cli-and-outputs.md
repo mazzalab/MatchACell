@@ -37,7 +37,7 @@ python workflow/scripts/matchacell_cluster_stability.py \
 | `--resolutions` | `0.1 0.2 0.3 0.5 0.8 1.0 1.5 2.0` | Leiden resolution sweep. |
 | `--n-pcs` | `50` | Principal components for PCA/neighbours. |
 | `--n-neighbors` | `15` | kNN graph neighbours. |
-| `--use-hvg` | `auto` | `auto` \| `yes` \| `no` (auto = HVG when > 2,000 genes). |
+| `--use-hvg` | `auto` | `auto` \| `yes` \| `no` (auto = HVG when > 2,000 genes). HVGs only drive PCA; the saved object keeps every gene. |
 | `--normalized` | off | Input `.X` is already log-normalized (raw counts in `layers["counts"]`): skip QC, normalization and HVG, cluster directly. Set by `type: "normalized"`. |
 | `--use-rep` | `auto` | `.obsm` embedding for neighbors, Leiden and the bootstrap. `auto` = `X_pca_harmony` or `X_pca` from a `--normalized` input, otherwise a fresh `X_pca`. |
 
@@ -62,6 +62,7 @@ python workflow/scripts/matchacell_cluster_stability.py \
 | Flag | Default | Description |
 | --- | --- | --- |
 | `--n-iter` | `100` | Bootstrap iterations per resolution. |
+| `--n-jobs` | `1` | Worker processes for the CPU bootstrap; the rule passes its `threads`. |
 | `--fraction` | `0.8` | Subsample fraction per iteration. |
 | `--skip-stability` | off | Skip the bootstrap (and the Verdict). |
 | `--skip-transitions` | off | Skip transition heatmaps. |
@@ -109,7 +110,9 @@ embeddings/
   embeddings_qc_metrics.png
 
 stability/
-  Cluster_Stability_Summary.xlsx    # one sheet per resolution
+  csv/stability_<res>.csv           # per resolution: Cluster, Jaccard_Stability, n_iter_done;
+                                    #   updated as the bootstrap runs
+  Cluster_Stability_Summary.xlsx    # one sheet per resolution, written at the end
   global_stability_comparison_boxplot.png
   resolution_summary.csv
 

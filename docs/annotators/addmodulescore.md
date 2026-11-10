@@ -51,11 +51,11 @@ In `annotation/AddModuleScore/`:
 
 ## Notes
 
-- **Small gene sets can fail.** On a 2,000-gene object (Step 1's default of
-  keeping only highly variable genes), Seurat stopped with
-  `cannot take a sample larger than the population when 'replace = FALSE'`:
-  an expression bin held fewer genes than the control genes requested. Keep all
-  genes, as described in
-  [Keep every gene for annotation](README.md#keep-every-gene-for-annotation).
+- **Small gene sets.** On a 2,000-gene object (what Step 1 used to keep), Seurat
+  stopped with `cannot take a sample larger than the population when
+  'replace = FALSE'`: an expression bin held fewer genes than the control genes
+  requested. The script now caps the control genes per bin, and Step 1 keeps every
+  gene ([Keep every gene for annotation](README.md#keep-every-gene-for-annotation)).
+  Targeted spatial panels are still small gene sets.
 - The UMAP plots use Step 1's `X_umap` reduction. If it isn't found, the script
   warns and falls back to the object's first reduction.
