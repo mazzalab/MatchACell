@@ -29,10 +29,13 @@ class CellOntology:
     def __init__(self, path):
         self.names, self.parents, synonyms = {}, {}, {}
         self._by_label = {}  # names only
+        self.version = ""
         term = None
         with open(path, encoding="utf-8") as fh:
             for line in fh:
                 line = line.rstrip("\n")
+                if line.startswith("data-version: ") and not self.version:
+                    self.version = line.split(": ", 1)[1]
                 if line.startswith("["):
                     self._add(term, synonyms)
                     term = {"is_a": [], "syn": []} if line == "[Term]" else None

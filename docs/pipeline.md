@@ -120,6 +120,7 @@ qsub -q <queue> -l select=1:ncpus=<threads>:mem=<mem_mb>mb -l walltime=<runtime>
 | `cytetype` | 8 GB | 4 h |
 | `celltypeai` | 16 GB | 8 h |
 | `matchacell_consensus` | 16 GB | 1 h |
+| `matchacell_report` | 16 GB | 30 min |
 
 These fit datasets of tens of thousands of cells. For larger ones, override any
 rule in the config (`runtime` is in minutes):
@@ -197,7 +198,8 @@ matchacell_annotation:
   [annotator's page](annotators/README.md). Keep every section, even for
   annotators you ignore: most rules read theirs when the workflow is parsed.
 - **`matchacell_consensus`** configures Step 3: the ontology file, the label
-  maps, the agreement bar and annotators to leave out; see
+  maps, the agreement bar, how votes are weighted, annotators to leave out and
+  an optional column of known labels to score against; see
   [consensus.md](consensus.md#configuration).
 
 ## The rules
@@ -217,6 +219,7 @@ matchacell_annotation:
 | 2 | `celltypeai` | `celltypeai.smk` | `celltypeai_tool.py` | `celltypeai.yaml` |
 | 3 | `fetch_cell_ontology` | `consensus.smk` | `curl` (pinned CL release) | none |
 | 3 | `matchacell_consensus` | `consensus.smk` | `consensus_tool.py` | `matchacell.yaml` |
+| 3 | `matchacell_report` | `consensus.smk` | `report_tool.py` | `matchacell.yaml` |
 
 Step 0 stages each sample as `results/<sample>/h5/<sample>.h5ad`, so later steps
 never need to know the input format.
@@ -232,7 +235,8 @@ tables and plots to `annotation/<Annotator>/`. Because annotators are
 independent rules, Snakemake runs them concurrently up to `--cores`.
 
 Step 3's rule reads the annotated `.h5ad` of every enabled annotator (minus
-`matchacell_consensus.exclude`) and writes `consensus/`.
+`matchacell_consensus.exclude`) and writes `consensus/`. The report rule then
+gathers Steps 1 to 3 into `MatchACell_full_report.html`.
 
 ## Adding an annotator
 

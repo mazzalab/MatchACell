@@ -67,7 +67,14 @@ resampling:
    cluster.
 4. Average that best-match Jaccard over `--n-iter` iterations.
 
-The result is a per-cluster stability score in `[0, 1]`. A boxplot across
+The result is a per-cluster stability score in `[0, 1]`. This is Hennig's
+(2007) cluster-wise bootstrap. His guide for the mean Jaccard (in the
+documentation of `fpc::clusterboot`): clusters below 0.6 should not be trusted,
+0.6 to 0.75 indicate patterns but not which cells belong to them, 0.75 or more
+are valid and stable, 0.85 or more highly stable. MatchACell's 0.60 risk and
+0.85 high thresholds and the 0.75 median bar of the Verdict follow it. The PCA is computed once on all cells and kept: the score measures how
+much a cluster depends on which cells were sampled, not on gene selection or
+the PCA. A boxplot across
 resolutions and a per-resolution Excel summary are written to `stability/`.
 
 On CPU every resolution is scored on the same subsamples. Each iteration builds
@@ -140,6 +147,13 @@ pay off on larger datasets.
 
 ## Known limitations
 
+- **No doublet detection.** Doublets often form small clusters between two
+  populations; run scDblFinder or Scrublet before MatchACell if they matter.
+  Ambient RNA is not corrected either.
+- **Stable is not the same as right.** A cluster that merges two cell types
+  with similar PCA coordinates can be perfectly stable. Step 3's marker plot and
+  the calls of the annotators are the check.
+
 - **GPU reproducibility** — cuGraph Leiden is currently **unseeded**, so GPU
   bootstrap results vary run-to-run. Seeding is on the roadmap; for reproducible
   runs today, use the CPU backend.
@@ -153,3 +167,23 @@ pay off on larger datasets.
 When profiling is enabled (default; disable with `--skip-perf`), per-stage
 wall-clock and per-resolution bootstrap throughput are written to
 `performance/` as CSV, JSON, and PNG, and embedded in the HTML report header.
+
+## References
+
+- Germain P-L, Sonrel A, Robinson MD (2020). pipeComp, a general framework for
+  the evaluation of computational pipelines, reveals performant single cell
+  RNA-seq preprocessing tools. *Genome Biology* 21:227. (MAD-based QC)
+- Heumos L, Schaar AC, et al. (2023). Best practices for single-cell analysis
+  across modalities. *Nature Reviews Genetics* 24:550–572.
+- Traag VA, Waltman L, van Eck NJ (2019). From Louvain to Leiden: guaranteeing
+  well-connected communities. *Scientific Reports* 9:5233.
+- Hennig C (2007). Cluster-wise assessment of cluster stability. *Computational
+  Statistics & Data Analysis* 52:258–271.
+- Wolf FA, Angerer P, Theis FJ (2018). SCANPY: large-scale single-cell gene
+  expression data analysis. *Genome Biology* 19:15.
+- Ergen C, et al. (2024). Consensus prediction of cell type labels in
+  single-cell data with popV. *Nature Genetics* 56:2731–2738. (Step 3's
+  ontology vote)
+- Diehl AD, et al. (2016). The Cell Ontology 2016: enhanced content,
+  modularization, and ontology interoperability. *Journal of Biomedical
+  Semantics* 7:44.

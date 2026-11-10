@@ -1,6 +1,7 @@
 """Step 3 consensus: ontology reading, label mapping and hierarchical voting."""
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -98,27 +99,43 @@ def test_mapper_order_and_unknown_ids(mapper, obo, tmp_path):
         ct.LabelMapper(CellOntology(obo), [bad])
 
 
-def test_cluster_shares_split_ties_and_skip_abstentions():
-    labels = pd.Series(["CD4 T, CD8 T", "CD4 T", "Unknown", "B cells"])
-    clusters = pd.Series(["0", "0", "0", "1"])
-    s = ct.cluster_shares(labels, clusters, tied=True).set_index(["cluster", "label"])["share"]
-    assert s[("0", "CD4 T")] == pytest.approx(1.5 / 3)
-    assert s[("0", "CD8 T")] == pytest.approx(0.5 / 3)
-    assert ("0", "Unknown") not in s.index
-    assert s[("1", "B cells")] == 1.0
+def test_ranked_labels_keep_the_best_and_abstentions_drop():
+    labels = pd.Series(["CD4 T, CD8 T", "CD4 T", "Unknown", " B cells "])
+    assert ct.clean_labels(labels, ranked=True).tolist()[:2] == ["CD4 T", "CD4 T"]
+    assert ct.clean_labels(labels).isna().tolist() == [False, False, True, False]
+    assert ct.clean_labels(labels).iloc[3] == "B cells"
+
+
+def test_models_of_one_annotator_combine_along_the_lineage(mapper):
+    # CellTypist Low + High: the finer term when they agree, a split when not
+    assert ct.combine_terms(("CL:0000624", "CL:0000084"), mapper) == (("CL:0000624", 1.0),)
+    assert ct.combine_terms(("CL:0000624", "CL:0000236"), mapper) == (
+        ("CL:0000236", 0.5), ("CL:0000624", 0.5))
+    assert ct.combine_terms((None, None), mapper) == ()
+
+
+def test_cluster_votes_count_abstaining_cells_in_the_cluster_size():
+    clusters = pd.Series(["0", "0", "0", "1"], index=list("abcd"))
+    cell_votes = pd.DataFrame({"cell": ["a", "b", "b", "d"], "annotator": "x",
+                               "cl_id": ["T", "T", "B", "B"], "w": [1.0, 0.5, 0.5, 1.0]})
+    v = ct.cluster_votes(cell_votes, clusters).set_index(["cluster", "cl_id"])["share"]
+    assert v[("0", "T")] == pytest.approx(1.5 / 3)
+    assert v[("0", "B")] == pytest.approx(0.5 / 3)
+    assert v[("1", "B")] == 1.0
 
 
 def _votes(rows):
-    return pd.DataFrame(rows, columns=["annotator", "cl_id", "label", "weight"])
+    return pd.DataFrame(rows, columns=["annotator", "cl_id", "label", "share"])
 
 
 def test_consensus_takes_the_most_specific_majority_term(mapper):
     v = _votes([("a", "CL:0000624", "CD4 T", 1.0), ("b", "CL:0000624", "CD4 T", 0.9),
                 ("c", "CL:0000084", "T cells", 1.0)])
-    r = ct.consensus_for_cluster(v, mapper)
+    r = ct.consensus_for_cluster(v, mapper, labels=v)
     assert (r["consensus_cl_id"], r["status"], r["consensus_label"]) == ("CL:0000624", "agreed", "CD4 T")
     assert r["agreement"] == pytest.approx(1.9 / 3)
     assert r["compatibility"] == pytest.approx(1.0 - 0.1 / 3)  # the coarse T cell vote fits
+    assert r["support:a"] == 1.0 and r["support:c"] == 0.0
 
 
 def test_consensus_falls_back_to_the_common_ancestor(mapper):
@@ -129,10 +146,33 @@ def test_consensus_falls_back_to_the_common_ancestor(mapper):
     assert r["agreement"] == pytest.approx(2 / 3)
 
 
+def test_family_votes_split_between_the_members_that_voted(mapper):
+    # two marker methods agree on CD4, the one reference model says CD8:
+    # per annotator CD4 wins 2:1, per family it is 1:1 and only T cell passes
+    v = _votes([("ScoreGenes", "CL:0000624", "CD4 T", 1.0),
+                ("AddModuleScore", "CL:0000624", "CD4 T", 1.0),
+                ("CellTypist", "CL:0000625", "CD8 T", 1.0)])
+    assert ct.consensus_for_cluster(v, mapper)["consensus_cl_name"].startswith("CD4")
+    r = ct.consensus_for_cluster(v, mapper, groups=ct.FAMILIES)
+    assert (r["consensus_cl_name"], r["status"]) == ("T cell", "partial")
+    assert ct.cluster_weights(["ScoreGenes", "CellTypist"], {"CellTypist": 2.0}, ct.FAMILIES) == {
+        "ScoreGenes": 1.0, "CellTypist": 2.0}
+
+
 def test_consensus_without_a_majority(mapper):
     v = _votes([("a", "free:blob", "blob", 1.0), ("b", "free:goo", "goo", 1.0)])
     r = ct.consensus_for_cluster(v, mapper)
     assert r["status"] == "none" and r["consensus_cl_id"] == ""
+
+
+def test_relation_and_pairwise_agreement(mapper):
+    assert mapper.relation("CL:0000624", "CL:0000084") == "finer"
+    assert mapper.relation("CL:0000084", "CL:0000624") == "coarser"
+    assert mapper.relation("CL:0000624", "CL:0000625") == "conflict"
+    terms = pd.DataFrame({"x": ["CL:0000624", "CL:0000624", "CL:0000236", None],
+                          "y": ["CL:0000624", "CL:0000084", "CL:0000624", "CL:0000236"]})
+    r = ct.pairwise_agreement(terms, mapper).iloc[0]
+    assert (r["n_cells"], r["same"], r["compatible"]) == (3, pytest.approx(1 / 3), pytest.approx(2 / 3))
 
 
 def _write(tmp_path, name, obs):
@@ -145,7 +185,8 @@ def _write(tmp_path, name, obs):
 def test_main_end_to_end(obo, tmp_path):
     cells = [f"c{i}" for i in range(6)]
     clusters = pd.Series(["0", "0", "0", "1", "1", "1"], index=cells)
-    clustered = _write(tmp_path, "clustered", pd.DataFrame({"leiden_0.5": clusters}))
+    clustered = _write(tmp_path, "clustered_multi_resolution", pd.DataFrame(
+        {"leiden_0.5": clusters, "known": ["CD4 T"] * 3 + ["B cells"] * 2 + ["CD8 T"]}))
     verdict = tmp_path / "MatchA_Verdict.txt"
     verdict.write_text("Recommended resolution : leiden_0.5\n")
     sg = _write(tmp_path, "sg", pd.DataFrame(
@@ -162,7 +203,7 @@ def test_main_end_to_end(obo, tmp_path):
     out = tmp_path / "out"
 
     ct.main(["-i", str(clustered), "-v", str(verdict), "--ontology", str(obo),
-             "--label-map", str(label_map), "-o", str(out),
+             "--label-map", str(label_map), "-o", str(out), "--truth-col", "known",
              "-a", f"ScoreGenes={sg}", "-a", f"CellTypist={ctyp}", "-a", f"CIA={cia}"])
 
     table = pd.read_csv(out / "consensus_by_cluster.csv", dtype={"cluster": str}).set_index("cluster")
@@ -171,9 +212,32 @@ def test_main_end_to_end(obo, tmp_path):
     assert {"call:ScoreGenes", "call:CellTypist:Low", "call:CIA"} <= set(table.columns)
     vocab = pd.read_csv(out / "label_vocabulary.csv")
     assert vocab.loc[vocab["mapped_by"] == "unmapped", "label"].tolist() == ["Odd"]
+    assert set(pd.read_csv(out / "annotation_long.csv")["relation"]) <= {
+        "same", "finer", "coarser", "conflict"}
+    val = pd.read_csv(out / "validation.csv").set_index("method")
+    assert val.loc["Consensus", "correct"] == pytest.approx(5 / 6)   # the CD8 cell is wrong
+    assert val.loc["CIA", "no call"] == pytest.approx(1 / 6)
+    assert val.loc["Cluster ceiling", "correct"] == pytest.approx(5 / 6)
+    calls = pd.read_csv(out / "cell_calls.csv.gz", index_col="cell")
+    assert calls.loc["c0", "ScoreGenes"] == "CD4 T" and calls.loc["c0", "consensus_label"] == "CD4 T"
+    assert (out / "annotator_agreement.csv").exists()
+    assert json.loads((out / "consensus_settings.json").read_text())["vote_by"] == "family"
     obs = ad.read_h5ad(out / "consensus_annotated.h5ad").obs
     assert obs.loc["c4", "consensus_label"] == "B cells"
     assert {"consensus_cl_id", "consensus_agreement", "consensus_status"} <= set(obs.columns)
+
+    # the Steps 1-3 report reads the same folders
+    import report_tool
+    a = ad.read_h5ad(clustered)
+    a.obsm["X_umap"] = np.arange(12, dtype=float).reshape(6, 2)
+    a.write_h5ad(clustered)
+    page = tmp_path / "report.html"
+    report_tool.main(["--sample", "s1", "--step1", str(tmp_path), "--consensus", str(out),
+                      "--settings", '{"type": "raw"}', "-o", str(page)])
+    text = page.read_text()
+    for part in ("Step 1", "Step 2", "Step 3", "Calls per cluster", "Against known labels",
+                 "MATCHA_EMBED", "CL:0000624"):
+        assert part in text, part
 
 
 @pytest.mark.skipif(shutil.which("snakemake") is None, reason="Snakemake is not installed")

@@ -6,6 +6,7 @@
 # _CELLTYPEAI_TISSUE, _SCANVI_REFERENCE, _SCPARADISE_MODEL) are provided by
 # the top-level Snakefile that includes this module.
 
+import json
 import shlex
 
 _CONS = config.get("matchacell_consensus") or {}
@@ -72,6 +73,10 @@ rule matchacell_consensus:
         ),
         label_maps=" ".join("--label-map " + shlex.quote(p) for p in _CONS.get("label_maps") or []),
         min_agreement=_CONS.get("min_agreement", 0.5),
+        vote_by=_CONS.get("vote_by", "family"),
+        weights=" ".join("--weight " + shlex.quote(f"{name}={w}")
+                         for name, w in (_CONS.get("weights") or {}).items()),
+        truth=("--truth-col " + shlex.quote(_CONS["truth_col"])) if _CONS.get("truth_col") else "",
     resources:
         mem_mb=cluster_resource("matchacell_consensus", "mem_mb", 16000),
         runtime=cluster_resource("matchacell_consensus", "runtime", 60),
@@ -86,5 +91,48 @@ rule matchacell_consensus:
             --verdict {input.verdict:q} \
             --ontology {input.ontology:q} \
             --min-agreement {params.min_agreement} \
-            --output {params.outdir:q} {params.annotations} {params.label_maps}
+            --vote-by {params.vote_by} \
+            --output {params.outdir:q} {params.annotations} {params.label_maps} {params.weights} {params.truth}
+        """
+
+
+def _report_settings():
+    """The parts of the configuration the report lists."""
+    keep = ("dtype", "type", "matchacell_cluster_stability", "matchacell_consensus")
+    out = {k: config.get(k) for k in keep if k in config}
+    ann = dict(config.get("matchacell_annotation") or {})
+    ann.pop("cytetype", None)  # may hold an API token
+    out["matchacell_annotation"] = ann
+    return json.dumps(out, default=str)
+
+
+rule matchacell_report:
+    """One HTML report for Steps 1-3 of a sample."""
+    input:
+        h5ad=outputDir + "results/{sample}/matchacell/clustered_multi_resolution.h5ad",
+        verdict=outputDir + "results/{sample}/matchacell/MatchA_Verdict.txt",
+        table=outputDir + "results/{sample}/matchacell/consensus/consensus_by_cluster.csv",
+    output:
+        outputDir + "results/{sample}/matchacell/MatchACell_full_report.html",
+    params:
+        step1=outputDir + "results/{sample}/matchacell",
+        markers=lambda wc: (
+            "--markers " + shlex.quote(config["matchacell_annotation"]["annot_file"])
+            if (config.get("matchacell_annotation") or {}).get("annot_file")
+            and os.path.exists(config["matchacell_annotation"]["annot_file"]) else ""),
+        settings=_report_settings(),
+    resources:
+        mem_mb=cluster_resource("matchacell_report", "mem_mb", 16000),
+        runtime=cluster_resource("matchacell_report", "runtime", 30),
+    conda:
+        "../envs/matchacell.yaml"
+    message:
+        "MatchACell · report · sample {wildcards.sample}"
+    shell:
+        r"""
+        python workflow/scripts/report_tool.py \
+            --sample {wildcards.sample} \
+            --step1 {params.step1:q} \
+            --settings {params.settings:q} \
+            --output {output:q} {params.markers}
         """

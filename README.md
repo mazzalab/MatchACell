@@ -21,7 +21,8 @@
 > **Status: Steps 1 to 3 are available.** Step 1 cleans and clusters the data
 > and recommends a clustering resolution, the *MatchA Verdict*. Step 2 annotates
 > that clustering with up to eight independent annotators. Step 3 reconciles them
-> on the Cell Ontology ([first version](docs/consensus.md)).
+> on the Cell Ontology ([docs](docs/consensus.md)) and writes one HTML report
+> for the three steps.
 
 ## How it works
 
@@ -31,7 +32,7 @@ input .h5ad (or Seurat .rds)
   ├─ Step 0  stage every sample as .h5ad
   ├─ Step 1  QC → multi-resolution Leiden → bootstrap stability → MatchA Verdict
   ├─ Step 2  annotators, in parallel, at the Verdict resolution
-  └─ Step 3  consensus across annotators on the Cell Ontology
+  └─ Step 3  consensus across annotators on the Cell Ontology → HTML report of Steps 1-3
 ```
 
 ### Step 1: clustering
@@ -77,9 +78,17 @@ explains how to prepare it, what each annotator needs, and where its results go.
 The `consensus` target maps every annotator's labels to Cell Ontology terms and
 votes per cluster: a vote for "CD4-positive, alpha-beta T cell" also supports
 "T cell", so annotators that disagree on the subtype can still agree on the
-lineage. Each cluster gets the most specific term most annotators support, the
-share of the vote behind it and its Step 1 stability. See
+lineage. Annotators that share their evidence (the three marker-signature
+methods use the same workbook) share one vote. Each cluster gets the most
+specific term more than half of the vote supports, the share of the vote behind
+it and its Step 1 stability. Given a column of known labels, Step 3 also scores
+every annotator and the consensus against it. See
 [`docs/consensus.md`](docs/consensus.md).
+
+The `consensus` target ends with `MatchACell_full_report.html`, one page for
+the three steps: QC and the stability sweep, every annotator's call per cluster,
+the consensus with the evidence behind it, and an embedding you can colour by
+any of them.
 
 ## Quickstart
 
@@ -125,7 +134,8 @@ step takes longer. See [`docs/installation.md`](docs/installation.md).
 <output_dir>/results/<sample>/
 ├── h5/<sample>.h5ad                        # staged input
 └── matchacell/
-    ├── MatchACell_report.html              # Step 1 report: start here
+    ├── MatchACell_full_report.html         # Steps 1-3 report: start here
+    ├── MatchACell_report.html              # Step 1 report
     ├── MatchA_Verdict.txt                  # the recommended resolution
     ├── clustered_multi_resolution.h5ad     # every leiden_<res> column + embeddings
     ├── clustered_multi_resolution.rds      # Seurat companion (read by AddModuleScore)
@@ -202,7 +212,10 @@ pytest                 # include the CPU end-to-end smoke test
   AddModuleScore, CIA, CellTypist, scANVI, scParadise, CyteType, CellTypeAI)
 - [x] **Step 3**: cross-annotator consensus on the Cell Ontology
   ([docs/consensus.md](docs/consensus.md))
-- [ ] Step 3: annotator weights, plots and an HTML report
+- [x] Step 3: family-pooled votes, validation against known labels, and one
+  HTML report for Steps 1-3
+- [ ] Doublet detection in Step 1 QC (e.g. scDblFinder or Scrublet)
+- [ ] Per-cell consensus for annotators that label single cells (popV-style)
 - [ ] Reconcile/document the CPU↔GPU backend divergence for end users
 - [ ] Seed cuGraph Leiden for run-to-run reproducibility on GPU
 

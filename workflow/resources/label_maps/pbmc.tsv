@@ -17,4 +17,9 @@ DC	CL:0000451	dendritic cell	PBMC signature / Seurat pbmc3k tutorial names
 pDC	CL:0000784	plasmacytoid dendritic cell	PBMC signature / Seurat pbmc3k tutorial names
 Platelet	CL:0000233	platelet	PBMC signature / Seurat pbmc3k tutorial names
 Platelets	CL:0000233	platelet	PBMC signature / Seurat pbmc3k tutorial names
+CD4 T cells	CL:0000624	CD4-positive, alpha-beta T cell	PBMC signature / Seurat pbmc3k tutorial names
+CD8 T cells	CL:0000625	CD8-positive, alpha-beta T cell	PBMC signature / Seurat pbmc3k tutorial names
+CD14+ Monocytes	CL:0000860	classical monocyte	PBMC signature / Seurat pbmc3k tutorial names
+FCGR3A+ Monocytes	CL:0000875	non-classical monocyte	PBMC signature / Seurat pbmc3k tutorial names
+Megakaryocytes	CL:0000233	platelet	PBMC: the pbmc3k tutorial's PPBP+/PF4+ 'Megakaryocytes' cluster is platelets
 Megakaryocytes/platelets	CL:0000233	platelet	PBMC: circulating megakaryocyte-like cells are platelets (CellTypist curates megakaryocyte, not an is_a parent of platelet)

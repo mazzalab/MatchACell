@@ -161,8 +161,9 @@ matchacell_annotation:
 # ── Step 3: Consensus ─────────────────────────────────────────────────────
 # Every enabled annotator votes on each cluster of the Verdict resolution;
 # labels are mapped to Cell Ontology (CL) terms and the consensus is the most
-# specific term more than `min_agreement` of the annotators support.
-# See docs/consensus.md.
+# specific term more than `min_agreement` of the vote supports. The `consensus`
+# target also writes results/<sample>/matchacell/MatchACell_full_report.html,
+# one report for Steps 1-3. See docs/consensus.md.
 matchacell_consensus:
   # Local cl-basic.obo. Empty -> download the pinned CL release into
   # <output_dir>/resources/ (needs internet on the node running it).
@@ -173,8 +174,18 @@ matchacell_consensus:
     - "workflow/resources/label_maps/celltypist_immune.tsv"
     - "workflow/resources/label_maps/pbmc.tsv"
   min_agreement: 0.5
+  # "family": one vote per family of annotators (marker signatures, reference
+  # models, LLMs), split between its members, because annotators of a family
+  # share their evidence. "annotator": one vote per annotator.
+  vote_by: "family"
+  # Multiply an annotator's vote, e.g. {CellTypist: 2}. Default 1.
+  weights: {}
   # Annotators left out of the vote, e.g. ["CellTypeAI"].
   exclude: []
+  # Column of the input .obs with known labels (e.g. from a published
+  # annotation): the annotators and the consensus are scored against it.
+  # Samples without the column are not scored.
+  truth_col: ""
 
 # ── PBS cluster resources (./run.py --cluster) ────────────────────────────
 # Each rule requests its own memory (mem_mb) and walltime (runtime, minutes);

@@ -167,6 +167,10 @@ rule consensus:
             outputDir + "results/{sample}/matchacell/consensus/consensus_by_cluster.csv",
             sample=SAMPLES,
         ),
+        expand(
+            outputDir + "results/{sample}/matchacell/MatchACell_full_report.html",
+            sample=SAMPLES,
+        ),
 
 # rule all:
 #     input:
