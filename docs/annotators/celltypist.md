@@ -47,8 +47,12 @@ In `annotation/CellTypist/`:
 - Only the majority-voting labels are kept; the per-cell predictions and
   CellTypist's confidence scores aren't saved.
 - Models need their genes. `Immune_All_Low` and `Immune_All_High` use 6,639
-  genes, most of which are gone if Step 1 keeps only highly variable genes; see
+  genes; Step 1 keeps every gene for that reason, see
   [Keep every gene for annotation](README.md#keep-every-gene-for-annotation).
+- CellTypist expects log1p expression normalized to 10,000 counts per cell. The
+  script rebuilds that from `layers["counts"]` (Step 1 normalizes to the median
+  library size). Without a `counts` layer it uses `.X` as is and warns.
+- Only the models listed in `models` are downloaded.
 - The rule lists the signature workbook (`annot_file`) as an input even though
   CellTypist doesn't use it, so that file must exist.
 - If compute nodes have no internet access, download the models once

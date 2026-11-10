@@ -31,9 +31,24 @@ def main(raw_data_file, verdict_file, models_list, output_dir):
     # Read input
     # =====================
     adata = sc.read_h5ad(raw_data_file)
-    adata_counts = adata.copy()
-    adata_counts.X = adata.layers["counts"]
-    adata.raw = adata_counts
+    has_counts = "counts" in adata.layers
+    if has_counts:
+        adata_counts = adata.copy()
+        adata_counts.X = adata.layers["counts"]
+        adata.raw = adata_counts
+
+    # CellTypist models expect log1p expression normalized to 10,000 counts per
+    # cell; Step 1 normalizes to the median library size instead, so rebuild
+    # that scale from the raw counts.
+    if has_counts:
+        ct_input = sc.AnnData(X=adata.layers["counts"].copy(), obs=adata.obs[[leiden_col]].copy(),
+                              var=adata.var[[]].copy())
+        sc.pp.normalize_total(ct_input, target_sum=1e4)
+        sc.pp.log1p(ct_input)
+    else:
+        print("[CellTypist] WARNING: no layers['counts']; using .X as is. CellTypist "
+              "expects log1p expression normalized to 10,000 counts per cell.")
+        ct_input = adata
     
     # =====================
     # Output folder
@@ -49,8 +64,11 @@ def main(raw_data_file, verdict_file, models_list, output_dir):
 
     sc.settings.figdir = output_celltypist
 
-    # Scarica/Aggiorna la lista dei modelli
-    models.download_models()
+    # Download only the models this run uses (skipped when already present);
+    # entries that are paths to custom model files are used as they are.
+    to_download = [m for m in models_list if not Path(m).is_file()]
+    if to_download:
+        models.download_models(model=to_download)
 
     # natural sort: "2" < "10" < "15_0"; mixing int and str keys raised
     # TypeError on subcluster labels like "15_0"
@@ -65,7 +83,7 @@ def main(raw_data_file, verdict_file, models_list, output_dir):
 
         print(f"Using model: {model}")
         # Esegui l'annotazione
-        predictions = celltypist.annotate(adata, 
+        predictions = celltypist.annotate(ct_input, 
                                         model = model, 
                                         majority_voting = True,
                                         over_clustering = leiden_col)
