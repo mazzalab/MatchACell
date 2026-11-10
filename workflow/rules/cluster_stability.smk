@@ -47,10 +47,11 @@ rule matchacell_cluster_stability:
             --outdir  {params.outdir} \
             --backend {params.backend} \
             --n-iter  {params.n_iter} \
-            --use-rep {params.use_rep} \
-            {params.normalized} \
-            {params.extra}
+            --use-rep {params.use_rep} {params.normalized} {params.extra}
         """
+        # Optional flags share the last line: Snakemake strips trailing
+        # whitespace, so an empty flag on its own line would leave the command
+        # ending in "\", which bash passes on as a literal argument.
 
 
 rule matchacell_cluster_stability_rds:

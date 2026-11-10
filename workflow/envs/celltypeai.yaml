@@ -25,3 +25,7 @@ dependencies:
   - pip
   - pip:
       - celltypeai
+      # polars (a celltypeai dependency) defaults to an AVX2 runtime that
+      # dies with "Illegal instruction" on older CPUs; rtcompat adds a
+      # fallback runtime polars picks automatically on those.
+      - polars[rtcompat]

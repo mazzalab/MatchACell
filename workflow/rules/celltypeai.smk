@@ -90,7 +90,6 @@ rule celltypeai:
             --model {params.model:q} \
             --num_genes {params.num_genes} \
             --n_iterations {params.n_iterations} \
-            --threads {threads} \
-            {params.think_flag} \
-            {params.verbose_flag}
+            --threads {threads} {params.think_flag} {params.verbose_flag}
         """
+        # Optional flags share the last line (see cluster_stability.smk).
