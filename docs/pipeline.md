@@ -193,7 +193,8 @@ matchacell_annotation:
 - **`n_iter`** is the bootstrap depth. More iterations smooth the Jaccard
   estimates at the cost of runtime.
 - **`doublets`** turns on doublet detection with scDblFinder before QC
-  (`method: "scDblFinder"`; empty is off). `action: "remove"` drops the
+  (`method: "scDblFinder"`; empty is off). **Recommended for droplet data**
+  (10x Chromium and similar); not meant for imaging-based spatial data. `action: "remove"` drops the
   doublets, `"flag"` only records `doublet_score` and `doublet_class`.
   `samples_col` names the 10x capture of each cell when one file pools several,
   `dbr` overrides the expected doublet rate, `layer` points at the raw counts.

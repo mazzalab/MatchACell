@@ -42,8 +42,9 @@ counts, Step 1 runs:
 
 1. **Data-driven QC**: MAD-based outlier detection (no hard-coded thresholds),
    adaptive to the assay (mitochondrial genes and/or Xenium negative-control
-   probes), and optionally doublet removal with
-   [scDblFinder](https://bioconductor.org/packages/scDblFinder).
+   probes), and optional doublet removal with
+   [scDblFinder](https://bioconductor.org/packages/scDblFinder), **recommended
+   for droplet data** (`doublets.method: "scDblFinder"` in `config.yaml`).
 2. **Preprocessing**: normalize → log1p → optional HVG → PCA → neighbours
    (CPU `scanpy`, or GPU `rapids-singlecell`).
 3. **Multi-resolution Leiden** clustering across a sweep of resolutions.
