@@ -158,6 +158,24 @@ matchacell_annotation:
     # non-reasoning models (phi3, phi4).
     think: false
 
+# ── Step 3: Consensus ─────────────────────────────────────────────────────
+# Every enabled annotator votes on each cluster of the Verdict resolution;
+# labels are mapped to Cell Ontology (CL) terms and the consensus is the most
+# specific term more than `min_agreement` of the annotators support.
+# See docs/consensus.md.
+matchacell_consensus:
+  # Local cl-basic.obo. Empty -> download the pinned CL release into
+  # <output_dir>/resources/ (needs internet on the node running it).
+  ontology: ""
+  # label -> CL id tables (TSV: label, cl_id). Later tables take precedence:
+  # put your own, for your signature workbook, last.
+  label_maps:
+    - "workflow/resources/label_maps/celltypist_immune.tsv"
+    - "workflow/resources/label_maps/pbmc.tsv"
+  min_agreement: 0.5
+  # Annotators left out of the vote, e.g. ["CellTypeAI"].
+  exclude: []
+
 # ── PBS cluster resources (./run.py --cluster) ────────────────────────────
 # Each rule requests its own memory (mem_mb) and walltime (runtime, minutes);
 # the defaults are listed in docs/pipeline.md. Override them per rule here, e.g.

@@ -18,10 +18,10 @@
 
 ---
 
-> **Status: Steps 1 and 2 are available.** Step 1 cleans and clusters the data
+> **Status: Steps 1 to 3 are available.** Step 1 cleans and clusters the data
 > and recommends a clustering resolution, the *MatchA Verdict*. Step 2 annotates
-> that clustering with up to eight independent annotators. Cross-annotator
-> consensus (Step 3) is on the roadmap.
+> that clustering with up to eight independent annotators. Step 3 reconciles them
+> on the Cell Ontology ([first version](docs/consensus.md)).
 
 ## How it works
 
@@ -31,7 +31,7 @@ input .h5ad (or Seurat .rds)
   ├─ Step 0  stage every sample as .h5ad
   ├─ Step 1  QC → multi-resolution Leiden → bootstrap stability → MatchA Verdict
   ├─ Step 2  annotators, in parallel, at the Verdict resolution
-  └─ Step 3  consensus across annotators (planned)
+  └─ Step 3  consensus across annotators on the Cell Ontology
 ```
 
 ### Step 1: clustering
@@ -72,6 +72,15 @@ The three signature-based annotators share one Excel workbook of marker genes,
 `matchacell_annotation.annot_file`. The [annotators overview](docs/annotators/README.md)
 explains how to prepare it, what each annotator needs, and where its results go.
 
+### Step 3: consensus
+
+The `consensus` target maps every annotator's labels to Cell Ontology terms and
+votes per cluster: a vote for "CD4-positive, alpha-beta T cell" also supports
+"T cell", so annotators that disagree on the subtype can still agree on the
+lineage. Each cluster gets the most specific term most annotators support, the
+share of the vote behind it and its Step 1 stability. See
+[`docs/consensus.md`](docs/consensus.md).
+
 ## Quickstart
 
 ```bash
@@ -91,6 +100,9 @@ python tools/fetch_pbmc3k.py data/pbmc3k.h5ad
 
 # 5. Step 2: every enabled annotator (runs Step 1 first if needed)
 ./run.py -w annotation -c config.yaml -q 8
+
+# 6. Step 3: consensus across the annotators (runs Steps 1-2 if needed)
+./run.py -w consensus -c config.yaml -q 8
 
 # On a PBS cluster, submit every job with qsub instead (see docs/pipeline.md)
 ./run.py -w annotation -c config.yaml -q 1 -cl -qu workq -j 20
@@ -118,9 +130,10 @@ step takes longer. See [`docs/installation.md`](docs/installation.md).
     ├── clustered_multi_resolution.h5ad     # every leiden_<res> column + embeddings
     ├── clustered_multi_resolution.rds      # Seurat companion (read by AddModuleScore)
     ├── qc/  embeddings/  stability/  transitions/  performance/
-    └── annotation/
-        ├── ScoreGenes/  AddModuleScore/  CIA/  CellTypist/
-        └── scANVI/  scParadise/  CyteType/  CellTypeAI/     # when enabled
+    ├── annotation/
+    │   ├── ScoreGenes/  AddModuleScore/  CIA/  CellTypist/
+    │   └── scANVI/  scParadise/  CyteType/  CellTypeAI/     # when enabled
+    └── consensus/                          # Step 3: consensus_by_cluster.csv, ...
 ```
 
 [`docs/cli-and-outputs.md`](docs/cli-and-outputs.md) maps every Step 1 file;
@@ -138,9 +151,10 @@ MatchACell/
 ├── workflow/
 │   ├── rules/                # one rule module per step and per annotator
 │   ├── scripts/              # what the rules run (Python and R)
+│   ├── resources/label_maps/ # label -> Cell Ontology tables for Step 3
 │   └── envs/                 # one conda environment per rule
 ├── tests/                    # pytest suite (unit, scheduling, CPU end-to-end)
-├── tools/fetch_pbmc3k.py     # grabs the example dataset
+├── tools/                    # example-data download, label-map builder
 ├── docs/                     # documentation; docs/annotators/ has one page per annotator
 └── .github/workflows/ci.yml  # pytest on CPU
 ```
@@ -171,6 +185,8 @@ re-clusterings; the bootstrap auto-routes to CPU below
   an output-by-output map.
 - [`docs/annotators/`](docs/annotators/README.md): Step 2 conventions, the
   signature workbook, and one page per annotator.
+- [`docs/consensus.md`](docs/consensus.md): Step 3, the vote on the Cell
+  Ontology, label maps and outputs.
 
 ## Testing
 
@@ -184,7 +200,9 @@ pytest                 # include the CPU end-to-end smoke test
 - [x] **Step 1**: QC + Leiden cluster-stability optimizer (the MatchA Verdict)
 - [x] **Step 2**: eight annotators run in parallel as rules (ScoreGenes,
   AddModuleScore, CIA, CellTypist, scANVI, scParadise, CyteType, CellTypeAI)
-- [ ] **Step 3**: cross-annotator consensus + unified report
+- [x] **Step 3**: cross-annotator consensus on the Cell Ontology
+  ([docs/consensus.md](docs/consensus.md))
+- [ ] Step 3: annotator weights, plots and an HTML report
 - [ ] Reconcile/document the CPU↔GPU backend divergence for end users
 - [ ] Seed cuGraph Leiden for run-to-run reproducibility on GPU
 

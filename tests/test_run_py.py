@@ -48,10 +48,14 @@ def test_same_config_cannot_run_twice(tmp_path, monkeypatch):
 
 
 def _rule_blocks():
+    """Rules of workflow/rules/ that are submitted as PBS jobs (not localrules)."""
+    local = re.search(r"^localrules:(.*)$", (ROOT / "Snakefile").read_text(), re.MULTILINE)
+    local = {r.strip() for r in local.group(1).split(",")} if local else set()
     for module in sorted((ROOT / "workflow" / "rules").glob("*.smk")):
         text = module.read_text()
         for match in re.finditer(r"^rule (\w+):\n(.*?)(?=^rule |\Z)", text, re.MULTILINE | re.DOTALL):
-            yield module.name, match.group(1), match.group(2)
+            if match.group(1) not in local:
+                yield module.name, match.group(1), match.group(2)
 
 
 def test_every_submitted_rule_requests_memory_and_walltime():

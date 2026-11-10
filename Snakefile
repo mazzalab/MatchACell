@@ -23,7 +23,7 @@ def cluster_resource(rule_name, key, default):
 
 
 # The aggregating targets only collect files; never submit them as PBS jobs.
-localrules: cluster_stability, annotation
+localrules: cluster_stability, annotation, consensus, fetch_cell_ontology
 
 # ── Included modules ──────────────────────────────────────────────────────
 # Step 0. Stage every sample as .h5ad (converting from .rds when needed).
@@ -71,6 +71,9 @@ _CELLTYPEAI_TISSUE = config["matchacell_annotation"].get("celltypeai", {}).get("
 
 # scParadise uses a downloaded or custom scAdam model, shared by all samples.
 _SCPARADISE_MODEL = config["matchacell_annotation"].get("scparadise", {}).get("model_dir", "")
+
+# Step 3. Consensus (after the switches above: it reads them).
+include: "workflow/rules/consensus.smk"
 
 
 onstart:
@@ -156,7 +159,15 @@ rule annotation:
             
     #         for smp in SAMPLES
     #     ]
-    
+
+rule consensus:
+    """Step 3 — Cross-annotator consensus on the Cell Ontology."""
+    input:
+        expand(
+            outputDir + "results/{sample}/matchacell/consensus/consensus_by_cluster.csv",
+            sample=SAMPLES,
+        ),
+
 # rule all:
 #     input:
 #         rules.annotation.input

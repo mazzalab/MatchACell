@@ -23,8 +23,8 @@ parallel up to `--cores`.
 | [CellTypeAI](celltypeai.md) | Local LLM ensemble served by Ollama | per cluster | `celltypeai.tissue` is not empty | a running Ollama server |
 
 Each annotator speaks its own vocabulary: the sheet names of your workbook, a
-model's or reference's labels, or free text. Reconciling them is the job of the
-planned Step 3.
+model's or reference's labels, or free text. [Step 3](../consensus.md) reconciles
+them on the Cell Ontology.
 
 ## What every annotator shares
 

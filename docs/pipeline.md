@@ -29,6 +29,7 @@ aggregating targets, which expand over every sample.
 | --- | --- |
 | `cluster_stability` | Steps 0 and 1 for every sample: the clustered `.h5ad`, its `.rds` companion and the MatchA Verdict. |
 | `annotation` | Step 2: the annotated `.h5ad` of every enabled annotator, running Step 1 first when needed. |
+| `consensus` | Step 3: the cross-annotator consensus of every sample ([consensus.md](consensus.md)), running Steps 1 and 2 first when needed. |
 
 ## The launcher: `run.py`
 
@@ -38,7 +39,7 @@ aggregating targets, which expand over every sample.
 
 | Group | Flag | Purpose |
 | --- | --- | --- |
-| Required | `-w, --workflow` | Target(s) to build: `cluster_stability`, `annotation`. |
+| Required | `-w, --workflow` | Target(s) to build: `cluster_stability`, `annotation`, `consensus`. |
 | | `-c, --configfile` | Path to the YAML config. |
 | | `-q, --cores` | Cores available to Snakemake. |
 | Execution | `-n, --dry-run` | Plan jobs without running them. |
@@ -98,8 +99,10 @@ qsub -q <queue> -l select=1:ncpus=<threads>:mem=<mem_mb>mb -l walltime=<runtime>
 - **Failed jobs** are resubmitted up to `--restart-times` times. Each attempt
   multiplies memory and walltime by the attempt number, so a job killed for
   exceeding its limits comes back with twice, then three times, as much.
-- **The aggregating targets** (`cluster_stability`, `annotation`) only collect
-  files and run inside the scheduler, never as PBS jobs.
+- **The aggregating targets** (`cluster_stability`, `annotation`, `consensus`)
+  only collect files and run inside the scheduler, never as PBS jobs. So does
+  `fetch_cell_ontology`, which downloads the Cell Ontology: compute nodes may
+  have no internet access.
 
 ### Resources per rule
 
@@ -116,6 +119,7 @@ qsub -q <queue> -l select=1:ncpus=<threads>:mem=<mem_mb>mb -l walltime=<runtime>
 | `scparadise` | 32 GB | 4 h |
 | `cytetype` | 8 GB | 4 h |
 | `celltypeai` | 16 GB | 8 h |
+| `matchacell_consensus` | 16 GB | 1 h |
 
 These fit datasets of tens of thousands of cells. For larger ones, override any
 rule in the config (`runtime` is in minutes):
@@ -192,6 +196,9 @@ matchacell_annotation:
 - **`matchacell_annotation`** holds one section per annotator, documented on each
   [annotator's page](annotators/README.md). Keep every section, even for
   annotators you ignore: most rules read theirs when the workflow is parsed.
+- **`matchacell_consensus`** configures Step 3: the ontology file, the label
+  maps, the agreement bar and annotators to leave out; see
+  [consensus.md](consensus.md#configuration).
 
 ## The rules
 
@@ -208,6 +215,8 @@ matchacell_annotation:
 | 2 | `scparadise` | `scparadise.smk` | `scparadise_tool.py` | `scparadise.yaml` |
 | 2 | `cytetype` | `cytetype.smk` | `cytetype_tool.py` | `cytetype.yaml` |
 | 2 | `celltypeai` | `celltypeai.smk` | `celltypeai_tool.py` | `celltypeai.yaml` |
+| 3 | `fetch_cell_ontology` | `consensus.smk` | `curl` (pinned CL release) | none |
+| 3 | `matchacell_consensus` | `consensus.smk` | `consensus_tool.py` | `matchacell.yaml` |
 
 Step 0 stages each sample as `results/<sample>/h5/<sample>.h5ad`, so later steps
 never need to know the input format.
@@ -221,6 +230,9 @@ Each Step 2 rule reads the clustered object, takes the resolution from
 `MatchA_Verdict.txt`, and writes its annotated `.h5ad` (its tracked output),
 tables and plots to `annotation/<Annotator>/`. Because annotators are
 independent rules, Snakemake runs them concurrently up to `--cores`.
+
+Step 3's rule reads the annotated `.h5ad` of every enabled annotator (minus
+`matchacell_consensus.exclude`) and writes `consensus/`.
 
 ## Adding an annotator
 

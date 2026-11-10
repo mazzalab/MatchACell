@@ -1,0 +1,20 @@
+label	cl_id	cl_name	source
+CD4 T	CL:0000624	CD4-positive, alpha-beta T cell	PBMC signature / Seurat pbmc3k tutorial names
+CD8 T	CL:0000625	CD8-positive, alpha-beta T cell	PBMC signature / Seurat pbmc3k tutorial names
+Naive CD4 T	CL:0000895	naive thymus-derived CD4-positive, alpha-beta T cell	PBMC signature / Seurat pbmc3k tutorial names
+Memory CD4 T	CL:0000897	CD4-positive, alpha-beta memory T cell	PBMC signature / Seurat pbmc3k tutorial names
+T cells	CL:0000084	T cell	PBMC signature / Seurat pbmc3k tutorial names
+B cells	CL:0000236	B cell	PBMC signature / Seurat pbmc3k tutorial names
+B	CL:0000236	B cell	PBMC signature / Seurat pbmc3k tutorial names
+NK	CL:0000623	natural killer cell	PBMC signature / Seurat pbmc3k tutorial names
+NK cells	CL:0000623	natural killer cell	PBMC signature / Seurat pbmc3k tutorial names
+CD14 Mono	CL:0000860	classical monocyte	PBMC signature / Seurat pbmc3k tutorial names
+CD14+ Mono	CL:0000860	classical monocyte	PBMC signature / Seurat pbmc3k tutorial names
+FCGR3A Mono	CL:0000875	non-classical monocyte	PBMC signature / Seurat pbmc3k tutorial names
+FCGR3A+ Mono	CL:0000875	non-classical monocyte	PBMC signature / Seurat pbmc3k tutorial names
+Monocytes	CL:0000576	monocyte	PBMC signature / Seurat pbmc3k tutorial names
+DC	CL:0000451	dendritic cell	PBMC signature / Seurat pbmc3k tutorial names
+pDC	CL:0000784	plasmacytoid dendritic cell	PBMC signature / Seurat pbmc3k tutorial names
+Platelet	CL:0000233	platelet	PBMC signature / Seurat pbmc3k tutorial names
+Platelets	CL:0000233	platelet	PBMC signature / Seurat pbmc3k tutorial names
+Megakaryocytes/platelets	CL:0000233	platelet	PBMC: circulating megakaryocyte-like cells are platelets (CellTypist curates megakaryocyte, not an is_a parent of platelet)

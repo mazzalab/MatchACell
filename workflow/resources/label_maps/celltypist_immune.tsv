@@ -1,0 +1,103 @@
+label	cl_id	cl_name	source
+B cells	CL:0000236	B cell	CellTypist encyclopedia
+Follicular B cells	CL:0000843	follicular B cell	CellTypist encyclopedia
+Proliferative germinal center B cells	CL:0000844	germinal center B cell	CellTypist encyclopedia
+Germinal center B cells	CL:0000844	germinal center B cell	CellTypist encyclopedia
+Memory B cells	CL:0000787	memory B cell	CellTypist encyclopedia
+Age-associated B cells	CL:0000787	memory B cell	CellTypist encyclopedia
+Naive B cells	CL:0000788	naive B cell	CellTypist encyclopedia
+Transitional B cells	CL:0000818	transitional stage B cell	CellTypist encyclopedia
+Large pre-B cells	CL:0000817	precursor B cell	CellTypist encyclopedia
+Small pre-B cells	CL:0000817	precursor B cell	CellTypist encyclopedia
+Pre-pro-B cells	CL:0002046	early pro-B cell	CellTypist encyclopedia
+Pro-B cells	CL:0000826	pro-B cell	CellTypist encyclopedia
+Cycling B cells	CL:0000236	B cell	CellTypist encyclopedia
+Cycling DCs	CL:0001056	dendritic cell, human	CellTypist encyclopedia
+Cycling gamma-delta T cells	CL:0000798	gamma-delta T cell	CellTypist encyclopedia
+Cycling monocytes	CL:0000576	monocyte	CellTypist encyclopedia
+Cycling NK cells	CL:0000623	natural killer cell	CellTypist encyclopedia
+Cycling T cells	CL:0000084	T cell	CellTypist encyclopedia
+DC	CL:0001056	dendritic cell, human	CellTypist encyclopedia
+DC1	CL:0000990	conventional dendritic cell	CellTypist encyclopedia
+DC2	CL:0000990	conventional dendritic cell	CellTypist encyclopedia
+DC3	CL:0001056	dendritic cell, human	CellTypist encyclopedia
+Migratory DCs	CL:0001056	dendritic cell, human	CellTypist encyclopedia
+Transitional DC	CL:0000840	immature conventional dendritic cell	CellTypist encyclopedia
+DC precursor	CL:0001029	common dendritic progenitor	CellTypist encyclopedia
+Double-negative thymocytes	CL:0002489	double negative thymocyte	CellTypist encyclopedia
+Double-positive thymocytes	CL:0000809	double-positive, alpha-beta thymocyte	CellTypist encyclopedia
+Early MK	CL:0000553	megakaryocyte progenitor cell	CellTypist encyclopedia
+Endothelial cells	CL:0000115	endothelial cell	CellTypist encyclopedia
+Epithelial cells	CL:0000066	epithelial cell	CellTypist encyclopedia
+Erythrocytes	CL:0000232	erythrocyte	CellTypist encyclopedia
+Early erythroid	CL:0000764	erythroid lineage cell	CellTypist encyclopedia
+Late erythroid	CL:0000764	erythroid lineage cell	CellTypist encyclopedia
+Mid erythroid	CL:0000764	erythroid lineage cell	CellTypist encyclopedia
+ETP	CL:0000893	thymocyte	CellTypist encyclopedia
+Fibroblasts	CL:0000057	fibroblast	CellTypist encyclopedia
+Granulocytes	CL:0000094	granulocyte	CellTypist encyclopedia
+Neutrophils	CL:0000775	neutrophil	CellTypist encyclopedia
+CMP	CL:0000049	common myeloid progenitor	CellTypist encyclopedia
+Early lymphoid/T lymphoid	CL:0000936	early lymphoid progenitor	CellTypist encyclopedia
+ELP	CL:0000936	early lymphoid progenitor	CellTypist encyclopedia
+GMP	CL:0000557	granulocyte monocyte progenitor cell	CellTypist encyclopedia
+HSC/MPP	CL:0000837	hematopoietic multipotent progenitor cell	CellTypist encyclopedia
+Megakaryocyte-erythroid-mast cell progenitor	CL:0000050	megakaryocyte-erythroid progenitor cell	CellTypist encyclopedia
+MEMP	CL:0000050	megakaryocyte-erythroid progenitor cell	CellTypist encyclopedia
+Neutrophil-myeloid progenitor	CL:0000834	neutrophil progenitor cell	CellTypist encyclopedia
+ILC	CL:0001065	innate lymphoid cell	CellTypist encyclopedia
+ILC1	CL:0001077	ILC1, human	CellTypist encyclopedia
+ILC2	CL:0001081	group 2 innate lymphoid cell, human	CellTypist encyclopedia
+ILC3	CL:0001078	group 3 innate lymphoid cell, human	CellTypist encyclopedia
+CD16+ NK cells	CL:0000623	natural killer cell	CellTypist encyclopedia
+CD16- NK cells	CL:0000623	natural killer cell	CellTypist encyclopedia
+NK cells	CL:0000623	natural killer cell	CellTypist encyclopedia
+Transitional NK	CL:0000823	immature natural killer cell	CellTypist encyclopedia
+ILC precursor	CL:0001082	immature innate lymphoid cell	CellTypist encyclopedia
+Alveolar macrophages	CL:0000583	alveolar macrophage	CellTypist encyclopedia
+Intermediate macrophages	CL:0000235	macrophage	CellTypist encyclopedia
+Intestinal macrophages	CL:0000235	macrophage	CellTypist encyclopedia
+Erythrophagocytic macrophages	CL:0000235	macrophage	CellTypist encyclopedia
+Hofbauer cells	CL:3000001	Hofbauer cell	CellTypist encyclopedia
+Kidney-resident macrophages	CL:1000698	kidney resident macrophage	CellTypist encyclopedia
+Kupffer cells	CL:0000091	Kupffer cell	CellTypist encyclopedia
+Macrophages	CL:0000235	macrophage	CellTypist encyclopedia
+Mast cells	CL:0000097	mast cell	CellTypist encyclopedia
+Megakaryocyte precursor	CL:0000553	megakaryocyte progenitor cell	CellTypist encyclopedia
+Megakaryocytes/platelets	CL:0000556	megakaryocyte	CellTypist encyclopedia
+MNP	CL:0000113	mononuclear phagocyte	CellTypist encyclopedia
+Mono-mac	CL:0000113	mononuclear phagocyte	CellTypist encyclopedia
+Monocyte precursor	CL:0000576	monocyte	CellTypist encyclopedia
+Classical monocytes	CL:0000860	classical monocyte	CellTypist encyclopedia
+Non-classical monocytes	CL:0000875	non-classical monocyte	CellTypist encyclopedia
+Monocytes	CL:0000576	monocyte	CellTypist encyclopedia
+Myelocytes	CL:0002193	myelocyte	CellTypist encyclopedia
+pDC	CL:0001058	plasmacytoid dendritic cell, human	CellTypist encyclopedia
+pDC precursor	CL:0001058	plasmacytoid dendritic cell, human	CellTypist encyclopedia
+Plasma cells	CL:0000786	plasma cell	CellTypist encyclopedia
+Plasmablasts	CL:0000980	plasmablast	CellTypist encyclopedia
+Promyelocytes	CL:0000836	promyelocyte	CellTypist encyclopedia
+CD8a/a	CL:0000084	T cell	CellTypist encyclopedia
+CD8a/b(entry)	CL:0002430	CD4-intermediate, CD8-positive double-positive thymocyte	CellTypist encyclopedia
+Follicular helper T cells	CL:0002038	T follicular helper cell	CellTypist encyclopedia
+CRTAM+ gamma-delta T cells	CL:0000798	gamma-delta T cell	CellTypist encyclopedia
+gamma-delta T cells	CL:0000798	gamma-delta T cell	CellTypist encyclopedia
+MAIT cells	CL:0000940	mucosal-associated invariant T cell	CellTypist encyclopedia
+Memory CD4+ cytotoxic T cells	CL:0000934	CD4-positive, alpha-beta cytotoxic T cell	CellTypist encyclopedia
+NKT cells	CL:0000814	mature NK T cell	CellTypist encyclopedia
+Regulatory T cells	CL:0000815	regulatory T cell	CellTypist encyclopedia
+T(agonist)	CL:0000815	regulatory T cell	CellTypist encyclopedia
+Tcm/Naive cytotoxic T cells	CL:0000907	central memory CD8-positive, alpha-beta T cell	CellTypist encyclopedia
+Tcm/Naive helper T cells	CL:0000904	central memory CD4-positive, alpha-beta T cell	CellTypist encyclopedia
+Tem/Trm cytotoxic T cells	CL:0000913	effector memory CD8-positive, alpha-beta T cell	CellTypist encyclopedia
+Tem/Temra cytotoxic T cells	CL:0001062	effector memory CD8-positive, alpha-beta T cell, terminally differentiated	CellTypist encyclopedia
+Trm cytotoxic T cells	CL:0000913	effector memory CD8-positive, alpha-beta T cell	CellTypist encyclopedia
+Tem/Effector helper T cells	CL:0000905	effector memory CD4-positive, alpha-beta T cell	CellTypist encyclopedia
+Tem/Effector helper T cells PD1+	CL:0000905	effector memory CD4-positive, alpha-beta T cell	CellTypist encyclopedia
+Treg(diff)	CL:0000815	regulatory T cell	CellTypist encyclopedia
+Type 1 helper T cells	CL:0000545	T-helper 1 cell	CellTypist encyclopedia
+Type 17 helper T cells	CL:0000899	T-helper 17 cell	CellTypist encyclopedia
+B-cell lineage	CL:0000988	hematopoietic cell	common ancestor of its low-hierarchy labels
+Cycling cells	CL:0000842	mononuclear leukocyte	common ancestor of its low-hierarchy labels
+Erythroid	CL:0000764	erythroid lineage cell	common ancestor of its low-hierarchy labels
+T cells	CL:0000084	T cell	common ancestor of its low-hierarchy labels

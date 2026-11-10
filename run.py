@@ -159,13 +159,16 @@ WORKFLOWS: Dict[str, str] = {
     "annotation": (
         "Step 2 — cell type annotation with every enabled annotator."
     ),
+    "consensus": (
+        "Step 3 — cross-annotator consensus on the Cell Ontology "
+        "(runs Steps 1-2 as needed)."
+    ),
 }
 
 # Targets that are on the roadmap but not yet wired as rules. Shown (dimmed) by
 # --list-workflows so the multi-annotator direction is visible.
 PLANNED: Dict[str, str] = {
     "annotate": "Step 2 — multiple cell type/state annotators run in parallel (planned).",
-    "consensus": "Step 3 — cross-annotator consensus + unified report (planned).",
 }
 
 
