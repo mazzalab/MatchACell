@@ -114,6 +114,7 @@ qsub -q <queue> -l select=1:ncpus=<threads>:mem=<mem_mb>mb -l walltime=<runtime>
 | `addmodulescore` | 32 GB | 4 h |
 | `scanvi` | 64 GB | 12 h |
 | `scparadise` | 32 GB | 4 h |
+| `cellwhisperer` | 32 GB | 12 h |
 | `cytetype` | 8 GB | 4 h |
 | `celltypeai` | 16 GB | 8 h |
 
@@ -166,6 +167,7 @@ matchacell_annotation:
   celltypist:     { ... }
   scanvi:         { ... }           # skipped while reference_file is empty
   scparadise:     { ... }           # skipped while model_dir is empty
+  cellwhisperer:  { ... }           # skipped while repo_dir is empty
   cytetype:       { ... }           # skipped without an API token
   celltypeai:     { ... }           # skipped while tissue is empty
 ```
@@ -208,6 +210,7 @@ matchacell_annotation:
 | 2 | `celltypist` | `celltypist.smk` | `celltypist_tool.py` | `celltypist.yaml` |
 | 2 | `scanvi` | `scanvi.smk` | `scanvi_tool.py` | `scanvi.yaml` |
 | 2 | `scparadise` | `scparadise.smk` | `scparadise_tool.py` | `scparadise.yaml` |
+| 2 | `cellwhisperer` | `cellwhisperer.smk` | `cellwhisperer_tool.py` | CellWhisperer's own pixi environment |
 | 2 | `cytetype` | `cytetype.smk` | `cytetype_tool.py` | `cytetype.yaml` |
 | 2 | `celltypeai` | `celltypeai.smk` | `celltypeai_tool.py` | `celltypeai.yaml` |
 

@@ -1,6 +1,6 @@
 # Step 2 — Annotators
 
-The `annotation` target labels the clustering chosen in Step 1 with up to eight
+The `annotation` target labels the clustering chosen in Step 1 with up to nine
 annotators. Each one is its own Snakemake rule, with its own script and conda
 environment. They don't depend on one another, so Snakemake runs them in
 parallel up to `--cores`.
@@ -19,6 +19,7 @@ parallel up to `--cores`.
 | [CellTypist](celltypist.md) | Pretrained CellTypist models | per cell, majority vote per cluster | always | internet access on the first run |
 | [scANVI](scanvi.md) | Reference mapping with scvi-tools | per cell | `scanvi.reference_file` is set | an annotated reference `.h5ad` |
 | [scParadise](scparadise.md) | Pretrained scAdam model | per cell | `scparadise.model_dir` is set | a downloaded scAdam model |
+| [CellWhisperer](cellwhisperer.md) | Text-transcriptome foundation model scoring each cell against candidate labels | per cell | `cellwhisperer.repo_dir` is set | a CellWhisperer pixi install with model weights |
 | [CyteType](cytetype.md) | CyteType AI annotation service | per cluster | a CyteType API token is set | a CyteType account, internet access |
 | [CellTypeAI](celltypeai.md) | Local LLM ensemble served by Ollama | per cluster | `celltypeai.tissue` is not empty | a running Ollama server |
 
@@ -50,15 +51,16 @@ UMAP plots. Where the labels end up:
 | CellTypist | `celltypist_label_majority_voting_<model>` | `cluster_to_celltype_mapping.xlsx` |
 | scANVI | `cell_type_pred`, `prediction_probability` | `cluster_to_celltype_mapping.xlsx` |
 | scParadise | `cell_type_pred`, `prediction_probability` | `cluster_to_celltype_mapping.xlsx` |
+| CellWhisperer | `cell_type_pred`, `prediction_probability` | `cluster_to_celltype_mapping.xlsx` |
 | CyteType | `cytetype_annotation_<leiden_res>` | `cluster_to_celltype_mapping.xlsx` |
 | CellTypeAI | `cell_type_ai` | `cluster_to_celltype_mapping.xlsx` |
 
-ScoreGenes, AddModuleScore, scANVI and scParadise write `Unknown` when nothing
+ScoreGenes, AddModuleScore, scANVI, scParadise and CellWhisperer write `Unknown` when nothing
 passes their threshold. CIA writes `Unassigned` for cells it can't assign and
 `Unknown` for clusters where no label reaches its threshold.
 
 **Enabling annotators.** ScoreGenes, AddModuleScore, CIA and CellTypist always
-run with `annotation`; the other four are skipped while their prerequisite in
+run with `annotation`; the other five are skipped while their prerequisite in
 the table above is empty. Keep every annotator's section in `config.yaml`, plus
 `annot_file`, even for results you ignore: the rules of ScoreGenes, CIA,
 CellTypist, AddModuleScore, CyteType and CellTypeAI read their sections when the

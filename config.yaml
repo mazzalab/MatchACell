@@ -115,6 +115,29 @@ matchacell_annotation:
     n_threads: 8
     seed: 0
 
+  #### Foundation-model Methods:
+  # --> CellWhisperer (github.com/epigen/cellwhisperer) -- local CLIP-style
+  # model scoring each cell against text labels. Runs in its own pixi
+  # environment; see docs/annotators/cellwhisperer.md for the one-time setup.
+  cellwhisperer:
+    # CellWhisperer checkout with its pixi environment installed
+    # (`bash envs/setup_pixi.sh`). Leave EMPTY to skip this annotator.
+    repo_dir: ""
+    # Model checkpoint. Empty -> <repo_dir>/results/models/jointemb/cellwhisperer_clip_v1.ckpt
+    model: ""
+    # pixi executable (a full path if it is not on PATH on compute nodes).
+    pixi: "pixi"
+    # Candidate labels. Empty -> the sheet names of annot_file.
+    labels: []
+    # Text scored for each label; must contain {label}. Tissue context helps,
+    # e.g. "{label} from human pancreas".
+    template: "{label}"
+    # Minimum softmax probability over the candidates (below -> Unknown); 0 disables.
+    threshold: 0.0
+    batch_size: 32
+    device: "auto"              # auto | cpu | cuda
+    n_threads: 8
+
   #### AI model-based Methods:
   # --> CyteType
   cytetype:

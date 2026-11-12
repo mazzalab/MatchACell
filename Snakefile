@@ -41,6 +41,7 @@ include: "workflow/rules/celltypeai.smk"
 include: "workflow/rules/addmodulescore.smk"
 include: "workflow/rules/scanvi.smk"
 include: "workflow/rules/scparadise.smk"
+include: "workflow/rules/cellwhisperer.smk"
 
 
 SAMPLES = (
@@ -71,6 +72,10 @@ _CELLTYPEAI_TISSUE = config["matchacell_annotation"].get("celltypeai", {}).get("
 
 # scParadise uses a downloaded or custom scAdam model, shared by all samples.
 _SCPARADISE_MODEL = config["matchacell_annotation"].get("scparadise", {}).get("model_dir", "")
+
+# CellWhisperer runs in its own pixi checkout (model weights included); skip
+# it out of rule annotation's required inputs when no checkout is configured.
+_CELLWHISPERER_REPO = config["matchacell_annotation"].get("cellwhisperer", {}).get("repo_dir", "")
 
 
 onstart:
@@ -140,6 +145,13 @@ rule annotation:
                 sample=SAMPLES,
             )
             if _SCPARADISE_MODEL else []
+        ),
+        cellwhisperer=(
+            expand(
+                os.path.join(outputDir, "results", "{sample}", "matchacell", "annotation", "CellWhisperer", "cellwhisperer_annotated.h5ad"),
+                sample=SAMPLES,
+            )
+            if _CELLWHISPERER_REPO else []
         ),
 
     # input:

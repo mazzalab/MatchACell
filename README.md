@@ -20,7 +20,7 @@
 
 > **Status: Steps 1 and 2 are available.** Step 1 cleans and clusters the data
 > and recommends a clustering resolution, the *MatchA Verdict*. Step 2 annotates
-> that clustering with up to eight independent annotators. Cross-annotator
+> that clustering with up to nine independent annotators. Cross-annotator
 > consensus (Step 3) is on the roadmap.
 
 ## How it works
@@ -65,6 +65,7 @@ with its own conda environment, on the clustering the Verdict recommends.
 | [CellTypist](docs/annotators/celltypist.md) | Pretrained CellTypist models | per cell, majority vote per cluster | always |
 | [scANVI](docs/annotators/scanvi.md) | Reference mapping with scvi-tools | per cell | `scanvi.reference_file` is set |
 | [scParadise](docs/annotators/scparadise.md) | Pretrained scAdam model | per cell | `scparadise.model_dir` is set |
+| [CellWhisperer](docs/annotators/cellwhisperer.md) | Text-transcriptome foundation model (CLIP-style) | per cell | `cellwhisperer.repo_dir` is set |
 | [CyteType](docs/annotators/cytetype.md) | CyteType AI annotation service | per cluster | a CyteType API token is set |
 | [CellTypeAI](docs/annotators/celltypeai.md) | Local LLM ensemble via Ollama | per cluster | `celltypeai.tissue` is set |
 
@@ -124,7 +125,7 @@ step takes longer. See [`docs/installation.md`](docs/installation.md).
     ├── qc/  embeddings/  stability/  transitions/  performance/
     └── annotation/
         ├── ScoreGenes/  AddModuleScore/  CIA/  CellTypist/
-        └── scANVI/  scParadise/  CyteType/  CellTypeAI/     # when enabled
+        └── scANVI/  scParadise/  CellWhisperer/  CyteType/  CellTypeAI/     # when enabled
 ```
 
 [`docs/cli-and-outputs.md`](docs/cli-and-outputs.md) maps every Step 1 file;
@@ -186,8 +187,9 @@ pytest                 # include the CPU end-to-end smoke test
 ## Roadmap
 
 - [x] **Step 1**: QC + Leiden cluster-stability optimizer (the MatchA Verdict)
-- [x] **Step 2**: eight annotators run in parallel as rules (ScoreGenes,
-  AddModuleScore, CIA, CellTypist, scANVI, scParadise, CyteType, CellTypeAI)
+- [x] **Step 2**: nine annotators run in parallel as rules (ScoreGenes,
+  AddModuleScore, CIA, CellTypist, scANVI, scParadise, CellWhisperer, CyteType,
+  CellTypeAI)
 - [ ] **Step 3**: cross-annotator consensus + unified report
 - [ ] Reconcile/document the CPU↔GPU backend divergence for end users
 - [ ] Seed cuGraph Leiden for run-to-run reproducibility on GPU
